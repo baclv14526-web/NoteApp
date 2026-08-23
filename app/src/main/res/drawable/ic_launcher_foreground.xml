@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Note paper -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,24 L30,84 L78,84 L78,24 Z" />
+
+    <!-- Lines on note -->
+    <path
+        android:strokeColor="#6750A4"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,38 L70,38" />
+    <path
+        android:strokeColor="#6750A4"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,48 L70,48" />
+    <path
+        android:strokeColor="#6750A4"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,58 L58,58" />
+
+    <!-- Pencil -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M65,62 L76,73 L70,76 L59,65 Z" />
+    <path
+        android:fillColor="#FF8F00"
+        android:pathData="M70,76 L66,79 L59,65 L65,62 Z" />
+    <path
+        android:fillColor="#5D4037"
+        android:pathData="M59,65 L56,74 L66,79 Z" />
+
+</vector>
