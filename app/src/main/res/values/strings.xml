@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ghi Chú</string>
+    <string name="note_hint_title">Tiêu đề...</string>
+    <string name="note_hint_content">Nhập nội dung ghi chú...</string>
+    <string name="search_hint">Tìm kiếm ghi chú...</string>
+    <string name="empty_notes">Chưa có ghi chú nào.\nNhấn + để tạo mới.</string>
+    <string name="save">Lưu</string>
+    <string name="delete">Xóa</string>
+    <string name="cancel">Hủy</string>
+    <string name="pin_title">Nhập mã PIN 6 số</string>
+    <string name="biometric_title">Xác thực</string>
+    <string name="biometric_subtitle">Đặt ngón tay lên cảm biến</string>
+    <string name="export_success">Xuất dữ liệu thành công!</string>
+    <string name="import_success">Nhập dữ liệu thành công!</string>
+    <string name="provider_authority">${applicationId}.provider</string>
+</resources>

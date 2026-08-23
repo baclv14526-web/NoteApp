@@ -1,0 +1,3 @@
+-keep class com.noteapp.data.db.entities.** { *; }
+-keep class com.noteapp.utils.ExportModels { *; }
+-keepattributes *Annotation*

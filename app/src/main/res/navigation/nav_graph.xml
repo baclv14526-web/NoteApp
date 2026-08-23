@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.noteapp.ui.home.HomeFragment"
+        android:label="Trang chủ"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_homeFragment_to_editorFragment"
+            app:destination="@id/editorFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action
+            android:id="@+id/action_homeFragment_to_pinFragment"
+            app:destination="@id/pinFragment"
+            app:enterAnim="@anim/slide_in_up"
+            app:popExitAnim="@anim/slide_out_down" />
+        <action
+            android:id="@+id/action_homeFragment_to_categoryFragment"
+            app:destination="@id/categoryFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/editorFragment"
+        android:name="com.noteapp.ui.editor.EditorFragment"
+        android:label="Chỉnh sửa"
+        tools:layout="@layout/fragment_editor">
+        <argument
+            android:name="noteId"
+            app:argType="long"
+            android:defaultValue="-1" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/pinFragment"
+        android:name="com.noteapp.ui.security.PinFragment"
+        android:label="Bảo mật"
+        tools:layout="@layout/fragment_pin">
+        <argument
+            android:name="noteId"
+            app:argType="long"
+            android:defaultValue="-1" />
+        <argument
+            android:name="isVerifying"
+            app:argType="boolean"
+            android:defaultValue="false" />
+        <argument
+            android:name="isSettingPin"
+            app:argType="boolean"
+            android:defaultValue="false" />
+        <action
+            android:id="@+id/action_pinFragment_to_editorFragment"
+            app:destination="@id/editorFragment"
+            app:popUpTo="@id/homeFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/categoryFragment"
+        android:name="com.noteapp.ui.category.CategoryFragment"
+        android:label="Danh mục"
+        tools:layout="@layout/fragment_category" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.noteapp.ui.settings.SettingsFragment"
+        android:label="Cài đặt"
+        tools:layout="@layout/fragment_settings">
+        <action
+            android:id="@+id/action_settingsFragment_to_pinFragment"
+            app:destination="@id/pinFragment" />
+    </fragment>
+
+</navigation>
