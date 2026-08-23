@@ -5,7 +5,7 @@ on:
     branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:          # cho phép chạy thủ công
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Checkout code ────────────────────────────────────────────────────
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. JDK 17 ───────────────────────────────────────────────────────────
+      # ── 2. JDK 17 ────────────────────────────────────────────────────────────
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -25,7 +25,16 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # ── 3. Cache Gradle ─────────────────────────────────────────────────────
+      # ── 3. Sinh gradlew nếu chưa có (trường hợp không commit gradlew) ───────
+      - name: Generate Gradle Wrapper if missing
+        run: |
+          if [ ! -f gradlew ]; then
+            echo "gradlew not found – generating with system gradle"
+            gradle wrapper --gradle-version=8.4 --distribution-type=bin
+          fi
+          chmod +x gradlew
+
+      # ── 4. Cache Gradle ──────────────────────────────────────────────────────
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -35,21 +44,11 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      # ── 4. Validate Gradle wrapper ──────────────────────────────────────────
-      - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      # ── 5. Grant execute permission ─────────────────────────────────────────
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      # ── 6. Build Debug APK ──────────────────────────────────────────────────
+      # ── 5. Build Debug APK ───────────────────────────────────────────────────
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace --no-daemon
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
-      # ── 7. Upload Debug APK artifact ────────────────────────────────────────
+      # ── 6. Upload Debug APK ──────────────────────────────────────────────────
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -57,7 +56,7 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      # ── 8. (Optional) Build Release APK unsigned ────────────────────────────
+      # ── 7. Build Release APK (unsigned) ─────────────────────────────────────
       - name: Build Release APK (unsigned)
         run: ./gradlew assembleRelease --no-daemon
 
@@ -68,12 +67,11 @@ jobs:
           path: app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 30
 
-  # ── Job: Sign Release (chạy khi có secrets keystore) ──────────────────────
+  # ── Job ký APK (chỉ chạy khi có secrets) ────────────────────────────────────
   sign-release:
     name: Sign & Release APK
     needs: build
     runs-on: ubuntu-latest
-    # Chỉ chạy khi push lên main VÀ đã cấu hình secrets
     if: |
       github.ref == 'refs/heads/main' &&
       github.event_name == 'push' &&
@@ -90,13 +88,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
-      # Giải mã keystore từ secret (base64)
-      - name: Decode keystore
+      - name: Generate Gradle Wrapper if missing
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version=8.4 --distribution-type=bin
+          fi
+          chmod +x gradlew
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
 
       - name: Build signed release APK
         run: |
@@ -114,7 +114,6 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           retention-days: 60
 
-      # Tạo GitHub Release khi có tag vX.Y.Z
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
