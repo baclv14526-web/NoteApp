@@ -5,21 +5,26 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
-import android.view.*
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.bumptech.glide.Glide
 import com.google.android.material.chip.Chip
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import androidx.lifecycle.lifecycleScope
 import com.noteapp.NoteApplication
 import com.noteapp.R
-import com.noteapp.data.db.entities.Category
 import com.noteapp.data.db.entities.Tag
 import com.noteapp.databinding.FragmentEditorBinding
 import kotlinx.coroutines.launch
@@ -38,41 +43,45 @@ class EditorFragment : Fragment() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                // Persist permission
-                requireContext().contentResolver.takePersistableUriPermission(
-                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+                try {
+                    requireContext().contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: SecurityException) { /* permission already taken */ }
                 vm.updateBgImage(uri.toString())
-                applyBackground(uri.toString())
+                showBgImage(uri.toString())
             }
         }
     }
 
-    override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View {
-        _b = FragmentEditorBinding.inflate(i, c, false); return b.root
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _b = FragmentEditorBinding.inflate(inflater, container, false)
+        return b.root
     }
 
-    override fun onViewCreated(view: View, saved: Bundle?) {
-        super.onViewCreated(view, saved)
-
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         val noteId = arguments?.getLong("noteId", -1L) ?: -1L
         vm.loadNote(noteId)
-
         setupMenu()
-        observeNote()
+        observeViewModel()
         setupColorButtons()
         setupImagePicker()
         setupTagSection()
-        setupCategorySection()
-        setupSecurityToggle()
+        setupCategoryButton()
+        setupSecurityButton()
     }
 
     // ── Menu ─────────────────────────────────────────────────────────────────
 
     private fun setupMenu() {
         requireActivity().addMenuProvider(object : MenuProvider {
-            override fun onCreateMenu(menu: Menu, mi: MenuInflater) {
-                mi.inflate(R.menu.menu_editor, menu)
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.menu_editor, menu)
             }
             override fun onMenuItemSelected(item: MenuItem): Boolean {
                 return when (item.itemId) {
@@ -85,32 +94,38 @@ class EditorFragment : Fragment() {
         }, viewLifecycleOwner, Lifecycle.State.RESUMED)
     }
 
-    // ── Observers ────────────────────────────────────────────────────────────
+    // ── Observe ───────────────────────────────────────────────────────────────
 
-    private fun observeNote() {
+    private fun observeViewModel() {
         vm.note.observe(viewLifecycleOwner) { note ->
-            if (b.etTitle.text.isNullOrEmpty() && note.title.isNotEmpty())
+            // Only set text if EditText is currently empty (avoid overwriting user input)
+            if (b.etTitle.text.isNullOrEmpty() && note.title.isNotEmpty()) {
                 b.etTitle.setText(note.title)
-            if (b.etContent.text.isNullOrEmpty() && note.content.isNotEmpty())
+            }
+            if (b.etContent.text.isNullOrEmpty() && note.content.isNotEmpty()) {
                 b.etContent.setText(note.content)
-
+            }
+            // Background
             if (!note.backgroundImageUri.isNullOrEmpty()) {
-                applyBackground(note.backgroundImageUri)
+                showBgImage(note.backgroundImageUri)
             } else {
                 b.ivBackground.visibility = View.GONE
                 b.editorRoot.setBackgroundColor(note.backgroundColor)
             }
+            // Text colours
             b.etTitle.setTextColor(note.textColor)
             b.etContent.setTextColor(note.textColor)
-            b.btnLock.setImageResource(
-                if (note.isSecure) R.drawable.ic_lock_closed else R.drawable.ic_lock_open
-            )
+            // Lock icon
+            val lockRes = if (note.isSecure) R.drawable.ic_lock_closed else R.drawable.ic_lock_open
+            b.btnLock.setImageResource(lockRes)
         }
-        vm.tags.observe(viewLifecycleOwner) { tags -> renderSelectedTags(tags) }
-        vm.allCategories.observe(viewLifecycleOwner) { /* categories ready */ }
+
+        vm.tags.observe(viewLifecycleOwner) { tags ->
+            renderTagChips(tags)
+        }
     }
 
-    private fun applyBackground(uriStr: String) {
+    private fun showBgImage(uriStr: String) {
         b.ivBackground.visibility = View.VISIBLE
         Glide.with(this)
             .load(Uri.parse(uriStr))
@@ -118,93 +133,103 @@ class EditorFragment : Fragment() {
             .into(b.ivBackground)
     }
 
-    // ── Color pickers ────────────────────────────────────────────────────────
+    // ── Colour pickers ────────────────────────────────────────────────────────
 
-    private val noteColors = listOf(
-        0xFFFFFFFF.toInt(), 0xFFFFF9C4.toInt(), 0xFFFFCDD2.toInt(),
-        0xFFE1F5FE.toInt(), 0xFFE8F5E9.toInt(), 0xFFF3E5F5.toInt(),
-        0xFFFFE0B2.toInt(), 0xFF212121.toInt(), 0xFF1A237E.toInt(),
-        0xFF1B5E20.toInt()
+    private val bgColors = listOf(
+        0xFFFFFFFF.toInt() to "⬜ Trắng",
+        0xFFFFF9C4.toInt() to "🟡 Vàng nhạt",
+        0xFFFFCDD2.toInt() to "🔴 Hồng nhạt",
+        0xFFE1F5FE.toInt() to "🔵 Xanh nhạt",
+        0xFFE8F5E9.toInt() to "🟢 Xanh lá nhạt",
+        0xFFF3E5F5.toInt() to "🟣 Tím nhạt",
+        0xFFFFE0B2.toInt() to "🟠 Cam nhạt",
+        0xFF212121.toInt() to "⬛ Đen",
+        0xFF1A237E.toInt() to "🔵 Xanh đậm",
+        0xFF1B5E20.toInt() to "🟢 Xanh lá đậm"
     )
+
     private val textColors = listOf(
-        0xFF212121.toInt(), 0xFFFFFFFF.toInt(), 0xFF1976D2.toInt(),
-        0xFF388E3C.toInt(), 0xFFD32F2F.toInt(), 0xFF7B1FA2.toInt(),
-        0xFFF57C00.toInt(), 0xFF795548.toInt()
+        0xFF212121.toInt() to "⬛ Đen",
+        0xFFFFFFFF.toInt() to "⬜ Trắng",
+        0xFF1976D2.toInt() to "🔵 Xanh",
+        0xFF388E3C.toInt() to "🟢 Xanh lá",
+        0xFFD32F2F.toInt() to "🔴 Đỏ",
+        0xFF7B1FA2.toInt() to "🟣 Tím",
+        0xFFF57C00.toInt() to "🟠 Cam",
+        0xFF795548.toInt() to "🟤 Nâu"
     )
 
     private fun setupColorButtons() {
-        b.btnBgColor.setOnClickListener  { showColorPicker("Màu nền", noteColors) { vm.updateBackground(it) } }
-        b.btnTextColor.setOnClickListener { showColorPicker("Màu chữ", textColors) { vm.updateTextColor(it) } }
+        b.btnBgColor.setOnClickListener {
+            showColorPickerDialog("Màu nền", bgColors) { vm.updateBackground(it) }
+        }
+        b.btnTextColor.setOnClickListener {
+            showColorPickerDialog("Màu chữ", textColors) { vm.updateTextColor(it) }
+        }
         b.btnRemoveBg.setOnClickListener {
             vm.updateBgImage(null)
             b.ivBackground.visibility = View.GONE
         }
     }
 
-    private fun showColorPicker(title: String, colors: List<Int>, onPick: (Int) -> Unit) {
-        val names = colors.map { colorToName(it) }.toTypedArray()
+    private fun showColorPickerDialog(
+        title: String,
+        options: List<Pair<Int, String>>,
+        onPick: (Int) -> Unit
+    ) {
+        val names = options.map { it.second }.toTypedArray()
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(title)
-            .setItems(names) { _, i -> onPick(colors[i]) }
+            .setItems(names) { _, i -> onPick(options[i].first) }
             .show()
     }
 
-    private fun colorToName(c: Int): String = when (c) {
-        0xFFFFFFFF.toInt() -> "⬜ Trắng"
-        0xFFFFF9C4.toInt() -> "🟡 Vàng nhạt"
-        0xFFFFCDD2.toInt() -> "🔴 Hồng nhạt"
-        0xFFE1F5FE.toInt() -> "🔵 Xanh nhạt"
-        0xFFE8F5E9.toInt() -> "🟢 Xanh lá nhạt"
-        0xFFF3E5F5.toInt() -> "🟣 Tím nhạt"
-        0xFFFFE0B2.toInt() -> "🟠 Cam nhạt"
-        0xFF212121.toInt() -> "⬛ Đen"
-        0xFF1A237E.toInt() -> "🔵 Xanh đậm"
-        0xFF1B5E20.toInt() -> "🟢 Xanh lá đậm"
-        0xFFFFFFFF.toInt() -> "⬜ Trắng chữ"
-        0xFF1976D2.toInt() -> "🔵 Xanh chữ"
-        0xFF388E3C.toInt() -> "🟢 Xanh lá chữ"
-        0xFFD32F2F.toInt() -> "🔴 Đỏ chữ"
-        0xFF7B1FA2.toInt() -> "🟣 Tím chữ"
-        0xFFF57C00.toInt() -> "🟠 Cam chữ"
-        0xFF795548.toInt() -> "🟤 Nâu chữ"
-        else               -> "#${Integer.toHexString(c)}"
-    }
-
-    // ── Image picker ─────────────────────────────────────────────────────────
+    // ── Image picker ──────────────────────────────────────────────────────────
 
     private fun setupImagePicker() {
         b.btnPickImage.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "image/*"
-                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/png","image/jpeg","image/webp"))
-                addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                putExtra(
+                    Intent.EXTRA_MIME_TYPES,
+                    arrayOf("image/png", "image/jpeg", "image/webp")
+                )
+                addFlags(
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
             imagePicker.launch(intent)
         }
     }
 
-    // ── Tags ─────────────────────────────────────────────────────────────────
+    // ── Tags ──────────────────────────────────────────────────────────────────
 
     private fun setupTagSection() {
-        b.btnAddTag.setOnClickListener {
-            val allTags = vm.allTags.value ?: emptyList()
-            val selected = vm.tags.value ?: emptyList()
-            val checkedItems = allTags.map { tag -> selected.any { it.id == tag.id } }.toBooleanArray()
-            val names = allTags.map { it.name }.toTypedArray()
+        b.btnAddTag.setOnClickListener { showTagPickerDialog() }
+    }
 
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Chọn tags")
-                .setMultiChoiceItems(names, checkedItems) { _, which, isChecked ->
-                    checkedItems[which] = isChecked
-                }
-                .setPositiveButton("Xong") { _, _ ->
-                    val newTags = allTags.filterIndexed { i, _ -> checkedItems[i] }
-                    vm.setSelectedTags(newTags)
-                }
-                .setNeutralButton("Tạo tag mới") { _, _ -> showCreateTagDialog() }
-                .show()
+    private fun showTagPickerDialog() {
+        val allTags  = vm.allTags.value ?: emptyList()
+        val selected = vm.tags.value   ?: emptyList()
+        if (allTags.isEmpty()) {
+            showCreateTagDialog(); return
         }
+        val checked   = allTags.map { t -> selected.any { it.id == t.id } }.toBooleanArray()
+        val tagNames  = allTags.map { it.name }.toTypedArray()
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Chọn tags")
+            .setMultiChoiceItems(tagNames, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton("Xong") { _, _ ->
+                vm.setSelectedTags(allTags.filterIndexed { i, _ -> checked[i] })
+            }
+            .setNeutralButton("Tạo tag mới") { _, _ -> showCreateTagDialog() }
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 
     private fun showCreateTagDialog() {
@@ -221,10 +246,11 @@ class EditorFragment : Fragment() {
                     }
                 }
             }
+            .setNegativeButton("Hủy", null)
             .show()
     }
 
-    private fun renderSelectedTags(tags: List<Tag>) {
+    private fun renderTagChips(tags: List<Tag>) {
         b.chipGroupTags.removeAllViews()
         tags.forEach { tag ->
             val chip = Chip(requireContext()).apply {
@@ -235,41 +261,46 @@ class EditorFragment : Fragment() {
             }
             chip.setOnCloseIconClickListener {
                 val current = vm.tags.value?.toMutableList() ?: mutableListOf()
-                current.removeIf { it.id == tag.id }
+                current.removeAll { it.id == tag.id }
                 vm.setSelectedTags(current)
             }
             b.chipGroupTags.addView(chip)
         }
     }
 
-    // ── Category ─────────────────────────────────────────────────────────────
+    // ── Category ──────────────────────────────────────────────────────────────
 
-    private fun setupCategorySection() {
-        b.btnCategory.setOnClickListener {
-            val cats = vm.allCategories.value ?: emptyList()
-            val current = vm.note.value?.categoryId
-            val names = (listOf("Không có") + cats.map { it.name }).toTypedArray()
-            var selectedIdx = cats.indexOfFirst { it.id == current } + 1
-
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Chọn danh mục")
-                .setSingleChoiceItems(names, selectedIdx) { _, i -> selectedIdx = i }
-                .setPositiveButton("Chọn") { _, _ ->
-                    val catId = if (selectedIdx == 0) null else cats[selectedIdx - 1].id
-                    vm.updateCategory(catId)
-                    b.btnCategory.text = if (selectedIdx == 0) "Danh mục" else cats[selectedIdx - 1].name
-                }
-                .show()
-        }
+    private fun setupCategoryButton() {
+        b.btnCategory.setOnClickListener { showCategoryPickerDialog() }
     }
 
-    // ── Security ─────────────────────────────────────────────────────────────
+    private fun showCategoryPickerDialog() {
+        val cats       = vm.allCategories.value ?: emptyList()
+        val currentId  = vm.note.value?.categoryId
+        val names      = (listOf("Không có") + cats.map { it.name }).toTypedArray()
+        var selectedIdx = if (currentId == null) 0
+                          else (cats.indexOfFirst { it.id == currentId } + 1).coerceAtLeast(0)
 
-    private fun setupSecurityToggle() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Chọn danh mục")
+            .setSingleChoiceItems(names, selectedIdx) { _, i -> selectedIdx = i }
+            .setPositiveButton("Chọn") { _, _ ->
+                val catId = if (selectedIdx == 0) null else cats[selectedIdx - 1].id
+                vm.updateCategory(catId)
+                b.btnCategory.text =
+                    if (selectedIdx == 0) "Danh mục" else cats[selectedIdx - 1].name
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    // ── Security ──────────────────────────────────────────────────────────────
+
+    private fun setupSecurityButton() {
         b.btnLock.setOnClickListener { vm.toggleSecure() }
     }
 
-    // ── Save / Delete ────────────────────────────────────────────────────────
+    // ── Save / Delete ─────────────────────────────────────────────────────────
 
     private fun saveNote() {
         val title   = b.etTitle.text.toString().trim()

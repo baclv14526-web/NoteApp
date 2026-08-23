@@ -46,7 +46,7 @@ jobs:
 
       # ── 5. Build Debug APK ───────────────────────────────────────────────────
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: ./gradlew assembleDebug --stacktrace --info --no-daemon
 
       # ── 6. Upload Debug APK ──────────────────────────────────────────────────
       - name: Upload Debug APK

@@ -1,7 +1,9 @@
 package com.noteapp.ui.security
 
 import android.os.Bundle
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
@@ -16,20 +18,23 @@ class PinFragment : Fragment() {
     private val b get() = _b!!
 
     private lateinit var security: SecurityManager
-    private var pinInput = StringBuilder()
-    private var isVerifying = false
-    private var noteId = -1L
+    private val pinInput = StringBuilder()
+    private var isVerifying  = false
+    private var noteId       = -1L
     private var isSettingPin = false
 
-    override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View {
-        _b = FragmentPinBinding.inflate(i, c, false); return b.root
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _b = FragmentPinBinding.inflate(inflater, container, false)
+        return b.root
     }
 
-    override fun onViewCreated(view: View, saved: Bundle?) {
-        super.onViewCreated(view, saved)
-        security    = SecurityManager(requireContext())
-        isVerifying = arguments?.getBoolean("isVerifying", false) ?: false
-        noteId      = arguments?.getLong("noteId", -1L) ?: -1L
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        security     = SecurityManager(requireContext())
+        isVerifying  = arguments?.getBoolean("isVerifying",  false) ?: false
+        noteId       = arguments?.getLong("noteId",          -1L)   ?: -1L
         isSettingPin = arguments?.getBoolean("isSettingPin", false) ?: false
 
         setupTitle()
@@ -39,40 +44,47 @@ class PinFragment : Fragment() {
 
     private fun setupTitle() {
         b.tvTitle.text = when {
-            isSettingPin  -> "Tạo mã PIN 6 số"
-            isVerifying   -> "Nhập mã PIN"
-            else          -> "Nhập mã PIN"
+            isSettingPin -> "Tạo mã PIN 6 số"
+            isVerifying  -> "Nhập mã PIN"
+            else         -> "Nhập mã PIN"
         }
-        b.btnBiometric.visibility =
-            if (isVerifying && security.isBiometricAvailable(requireContext()))
-                View.VISIBLE else View.GONE
+        val biometricAvailable = isVerifying && security.isBiometricAvailable(requireContext())
+        b.btnBiometric.visibility = if (biometricAvailable) View.VISIBLE else View.GONE
     }
 
     private fun setupKeypad() {
-        val numBtns = listOf(
+        val btns = listOf(
             b.btn0, b.btn1, b.btn2, b.btn3, b.btn4,
             b.btn5, b.btn6, b.btn7, b.btn8, b.btn9
         )
-        numBtns.forEachIndexed { idx, btn ->
-            btn.setOnClickListener { appendDigit(idx.toString()) }
+        btns.forEachIndexed { index, btn ->
+            btn.setOnClickListener { appendDigit(index.toString()) }
         }
         b.btnDelete.setOnClickListener { deleteDigit() }
         b.btnDelete.setOnLongClickListener { clearPin(); true }
     }
 
     private fun setupBiometric() {
-        b.btnBiometric.setOnClickListener {
-            security.showBiometricPrompt(
-                fragment  = this,
-                onSuccess = { onAuthSuccess() },
-                onFailed  = { Toast.makeText(context, "Xác thực thất bại", Toast.LENGTH_SHORT).show() },
-                onError   = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
-            )
-        }
-        // Auto-show biometric if verifying
+        b.btnBiometric.setOnClickListener { triggerBiometric() }
+        // Auto-trigger biometric if verifying
         if (isVerifying && security.isBiometricAvailable(requireContext())) {
-            b.btnBiometric.performClick()
+            triggerBiometric()
         }
+    }
+
+    private fun triggerBiometric() {
+        security.showBiometricPrompt(
+            fragment  = this,
+            onSuccess = { onAuthSuccess() },
+            onFailed  = {
+                Toast.makeText(context, "Xác thực thất bại, thử lại", Toast.LENGTH_SHORT).show()
+            },
+            onError   = { msg ->
+                if (msg.isNotEmpty()) {
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
     }
 
     private fun appendDigit(d: String) {
@@ -92,6 +104,7 @@ class PinFragment : Fragment() {
     private fun clearPin() {
         pinInput.clear()
         updateDots()
+        b.tvError.visibility = View.GONE
     }
 
     private fun updateDots() {
@@ -111,35 +124,25 @@ class PinFragment : Fragment() {
                 Toast.makeText(context, "Đã tạo mã PIN", Toast.LENGTH_SHORT).show()
                 findNavController().popBackStack()
             }
-            isVerifying -> {
-                if (security.verifyPin(pin)) {
-                    onAuthSuccess()
-                } else {
-                    clearPin()
-                    b.tvError.visibility = View.VISIBLE
-                    b.tvError.text = "Mã PIN không đúng. Thử lại."
-                }
-            }
             !security.hasPin() -> {
-                // First time: set PIN
+                // First time: create PIN
                 security.setPin(pin)
                 Toast.makeText(context, "Đã tạo mã PIN bảo mật", Toast.LENGTH_SHORT).show()
                 findNavController().popBackStack()
             }
+            security.verifyPin(pin) -> {
+                b.tvError.visibility = View.GONE
+                onAuthSuccess()
+            }
             else -> {
-                if (security.verifyPin(pin)) {
-                    onAuthSuccess()
-                } else {
-                    clearPin()
-                    b.tvError.visibility = View.VISIBLE
-                    b.tvError.text = "Mã PIN không đúng!"
-                }
+                clearPin()
+                b.tvError.visibility = View.VISIBLE
+                b.tvError.text = "Mã PIN không đúng. Thử lại."
             }
         }
     }
 
     private fun onAuthSuccess() {
-        b.tvError.visibility = View.GONE
         if (noteId > 0) {
             findNavController().navigate(
                 R.id.action_pinFragment_to_editorFragment,

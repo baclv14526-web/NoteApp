@@ -1,7 +1,9 @@
 package com.noteapp.ui.category
 
 import android.os.Bundle
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -9,12 +11,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.noteapp.NoteApplication
-import com.noteapp.R
 import com.noteapp.data.db.entities.Category
 import com.noteapp.data.db.entities.Tag
 import com.noteapp.databinding.FragmentCategoryBinding
 import com.noteapp.databinding.ItemCategoryBinding
-import android.view.LayoutInflater
 
 class CategoryFragment : Fragment() {
 
@@ -25,99 +25,79 @@ class CategoryFragment : Fragment() {
         CategoryViewModelFactory((requireActivity().application as NoteApplication).repository)
     }
 
-    override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View {
-        _b = FragmentCategoryBinding.inflate(i, c, false); return b.root
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _b = FragmentCategoryBinding.inflate(inflater, container, false)
+        return b.root
     }
 
-    override fun onViewCreated(view: View, saved: Bundle?) {
-        super.onViewCreated(view, saved)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         setupCategoryList()
         setupTagList()
-        setupAddButtons()
+        b.btnAddCategory.setOnClickListener { showCategoryDialog(null) }
+        b.btnAddTag.setOnClickListener      { showTagDialog(null) }
     }
 
-    // ── Categories ───────────────────────────────────────────────────────────
+    // ── Categories ────────────────────────────────────────────────────────────
 
     private fun setupCategoryList() {
-        val adapter = CategoryListAdapter(
-            onEdit   = { cat -> showEditCategoryDialog(cat) },
+        val adapter = SimpleCategoryAdapter(
+            onEdit   = { cat -> showCategoryDialog(cat) },
             onDelete = { cat ->
                 MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Xóa danh mục")
-                    .setMessage("Xóa \"${cat.name}\"? Các ghi chú sẽ không bị xóa.")
+                    .setTitle("Xóa danh mục \"${cat.name}\"?")
+                    .setMessage("Các ghi chú thuộc danh mục này sẽ không bị xóa.")
                     .setPositiveButton("Xóa") { _, _ -> vm.deleteCategory(cat) }
                     .setNegativeButton("Hủy", null).show()
             }
         )
         b.rvCategories.layoutManager = LinearLayoutManager(requireContext())
         b.rvCategories.adapter = adapter
-        vm.categories.observe(viewLifecycleOwner) { adapter.submitList(it) }
-    }
-
-    private fun setupAddButtons() {
-        b.btnAddCategory.setOnClickListener { showAddCategoryDialog() }
-        b.btnAddTag.setOnClickListener { showAddTagDialog() }
-    }
-
-    private fun showAddCategoryDialog() {
-        showCategoryDialog(null)
-    }
-
-    private fun showEditCategoryDialog(cat: Category) {
-        showCategoryDialog(cat)
+        vm.categories.observe(viewLifecycleOwner) { adapter.setItems(it) }
     }
 
     private fun showCategoryDialog(existing: Category?) {
         val input = EditText(requireContext()).apply {
             hint = "Tên danh mục"
-            existing?.let { setText(it.name) }
+            if (existing != null) setText(existing.name)
         }
-        val colors = listOf(
-            0xFF2196F3.toInt(), 0xFF4CAF50.toInt(), 0xFFFF5722.toInt(),
-            0xFF9C27B0.toInt(), 0xFFFF9800.toInt(), 0xFF607D8B.toInt(),
-            0xFFE91E63.toInt(), 0xFF00BCD4.toInt()
-        )
-        var selectedColor = existing?.color ?: colors[0]
-
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(if (existing == null) "Thêm danh mục" else "Sửa danh mục")
             .setView(input)
             .setPositiveButton("Lưu") { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
-                    if (existing == null) vm.insertCategory(name, selectedColor)
-                    else vm.updateCategory(existing.copy(name = name, color = selectedColor))
+                    val color = existing?.color ?: 0xFF2196F3.toInt()
+                    if (existing == null) vm.insertCategory(name, color)
+                    else vm.updateCategory(existing.copy(name = name))
                 }
             }
-            .setNegativeButton("Hủy", null)
-            .show()
+            .setNegativeButton("Hủy", null).show()
     }
 
-    // ── Tags ─────────────────────────────────────────────────────────────────
+    // ── Tags ──────────────────────────────────────────────────────────────────
 
     private fun setupTagList() {
-        val adapter = TagListAdapter(
-            onEdit   = { tag -> showEditTagDialog(tag) },
+        val adapter = SimpleTagAdapter(
+            onEdit   = { tag -> showTagDialog(tag) },
             onDelete = { tag ->
                 MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Xóa tag")
-                    .setMessage("Xóa \"#${tag.name}\"?")
+                    .setTitle("Xóa tag \"#${tag.name}\"?")
                     .setPositiveButton("Xóa") { _, _ -> vm.deleteTag(tag) }
                     .setNegativeButton("Hủy", null).show()
             }
         )
         b.rvTags.layoutManager = LinearLayoutManager(requireContext())
         b.rvTags.adapter = adapter
-        vm.tags.observe(viewLifecycleOwner) { adapter.submitList(it) }
+        vm.tags.observe(viewLifecycleOwner) { adapter.setItems(it) }
     }
-
-    private fun showAddTagDialog() { showTagDialog(null) }
-    private fun showEditTagDialog(tag: Tag) { showTagDialog(tag) }
 
     private fun showTagDialog(existing: Tag?) {
         val input = EditText(requireContext()).apply {
             hint = "Tên tag"
-            existing?.let { setText(it.name) }
+            if (existing != null) setText(existing.name)
         }
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(if (existing == null) "Thêm tag" else "Sửa tag")
@@ -130,67 +110,78 @@ class CategoryFragment : Fragment() {
                     else vm.updateTag(existing.copy(name = name))
                 }
             }
-            .setNegativeButton("Hủy", null)
-            .show()
+            .setNegativeButton("Hủy", null).show()
     }
 
     override fun onDestroyView() { super.onDestroyView(); _b = null }
 }
 
-// ── Inline adapters ──────────────────────────────────────────────────────────
+// ── Standalone adapters (outside fragment class) ──────────────────────────────
 
-class CategoryListAdapter(
+class SimpleCategoryAdapter(
     private val onEdit: (Category) -> Unit,
     private val onDelete: (Category) -> Unit
-) : RecyclerView.Adapter<CategoryListAdapter.VH>() {
+) : RecyclerView.Adapter<SimpleCategoryAdapter.VH>() {
 
-    private var list = emptyList<Category>()
+    private val items = mutableListOf<Category>()
 
-    fun submitList(newList: List<Category>) {
-        list = newList
+    fun setItems(newItems: List<Category>) {
+        items.clear()
+        items.addAll(newItems)
         notifyDataSetChanged()
     }
 
-    inner class VH(val b: ItemCategoryBinding) : RecyclerView.ViewHolder(b.root)
+    inner class VH(val binding: ItemCategoryBinding) :
+        RecyclerView.ViewHolder(binding.root)
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        VH(ItemCategoryBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val binding = ItemCategoryBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return VH(binding)
+    }
 
-    override fun getItemCount() = list.size
+    override fun getItemCount(): Int = items.size
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val cat = list[position]
-        holder.b.tvName.text = cat.name
-        holder.b.vColor.setBackgroundColor(cat.color)
-        holder.b.btnEdit.setOnClickListener   { onEdit(cat) }
-        holder.b.btnDelete.setOnClickListener { onDelete(cat) }
+        val cat = items[position]
+        holder.binding.tvName.text = cat.name
+        holder.binding.vColor.setBackgroundColor(cat.color)
+        holder.binding.btnEdit.setOnClickListener   { onEdit(cat) }
+        holder.binding.btnDelete.setOnClickListener { onDelete(cat) }
     }
 }
 
-class TagListAdapter(
+class SimpleTagAdapter(
     private val onEdit: (Tag) -> Unit,
     private val onDelete: (Tag) -> Unit
-) : RecyclerView.Adapter<TagListAdapter.VH>() {
+) : RecyclerView.Adapter<SimpleTagAdapter.VH>() {
 
-    private var list = emptyList<Tag>()
+    private val items = mutableListOf<Tag>()
 
-    fun submitList(newList: List<Tag>) {
-        list = newList
+    fun setItems(newItems: List<Tag>) {
+        items.clear()
+        items.addAll(newItems)
         notifyDataSetChanged()
     }
 
-    inner class VH(val b: ItemCategoryBinding) : RecyclerView.ViewHolder(b.root)
+    inner class VH(val binding: ItemCategoryBinding) :
+        RecyclerView.ViewHolder(binding.root)
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        VH(ItemCategoryBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val binding = ItemCategoryBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return VH(binding)
+    }
 
-    override fun getItemCount() = list.size
+    override fun getItemCount(): Int = items.size
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val tag = list[position]
-        holder.b.tvName.text = "#${tag.name}"
-        holder.b.vColor.setBackgroundColor(tag.color)
-        holder.b.btnEdit.setOnClickListener   { onEdit(tag) }
-        holder.b.btnDelete.setOnClickListener { onDelete(tag) }
+        val tag = items[position]
+        holder.binding.tvName.text = "#${tag.name}"
+        holder.binding.vColor.setBackgroundColor(tag.color)
+        holder.binding.btnEdit.setOnClickListener   { onEdit(tag) }
+        holder.binding.btnDelete.setOnClickListener { onDelete(tag) }
     }
 }

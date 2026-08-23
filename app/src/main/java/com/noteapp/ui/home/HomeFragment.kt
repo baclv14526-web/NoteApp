@@ -2,9 +2,15 @@ package com.noteapp.ui.home
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
-import android.view.*
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.SearchView
 import androidx.core.os.bundleOf
@@ -41,6 +47,7 @@ class HomeFragment : Fragment() {
 
     private lateinit var adapter: NoteAdapter
     private var importFormat = "json"
+    private var isGridLayout = true
 
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -59,12 +66,15 @@ class HomeFragment : Fragment() {
         }
     }
 
-    override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View {
-        _b = FragmentHomeBinding.inflate(i, c, false); return b.root
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _b = FragmentHomeBinding.inflate(inflater, container, false)
+        return b.root
     }
 
-    override fun onViewCreated(view: View, saved: Bundle?) {
-        super.onViewCreated(view, saved)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
         setupSearch()
         setupFab()
@@ -88,7 +98,8 @@ class HomeFragment : Fragment() {
             },
             onLongClick = { note -> showContextMenu(note) }
         )
-        b.recyclerView.layoutManager = StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
+        b.recyclerView.layoutManager =
+            StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
         b.recyclerView.adapter = adapter
 
         adapter.addLoadStateListener { states ->
@@ -104,9 +115,10 @@ class HomeFragment : Fragment() {
 
     private fun setupSearch() {
         b.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(q: String?) = false
-            override fun onQueryTextChange(t: String?): Boolean {
-                vm.setSearch(t ?: ""); return true
+            override fun onQueryTextSubmit(query: String?): Boolean = false
+            override fun onQueryTextChange(newText: String?): Boolean {
+                vm.setSearch(newText.orEmpty())
+                return true
             }
         })
     }
@@ -121,33 +133,28 @@ class HomeFragment : Fragment() {
 
     private fun setupMenu() {
         requireActivity().addMenuProvider(object : MenuProvider {
-            override fun onCreateMenu(menu: Menu, mi: MenuInflater) {
-                mi.inflate(R.menu.menu_home, menu)
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.menu_home, menu)
             }
             override fun onMenuItemSelected(item: MenuItem): Boolean {
                 return when (item.itemId) {
-                    R.id.action_export -> { showExportDialog(); true }
-                    R.id.action_import -> { showImportDialog(); true }
-                    R.id.action_toggle_grid -> {
-                        toggleLayout(); true
-                    }
-                    else -> false
+                    R.id.action_export      -> { showExportDialog(); true }
+                    R.id.action_import      -> { showImportDialog(); true }
+                    R.id.action_toggle_grid -> { toggleLayout(); true }
+                    else                    -> false
                 }
             }
         }, viewLifecycleOwner, Lifecycle.State.RESUMED)
     }
 
-    private var isGridLayout = true
     private fun toggleLayout() {
         isGridLayout = !isGridLayout
+        val cols = if (isGridLayout) 2 else 1
         b.recyclerView.layoutManager =
-            if (isGridLayout)
-                StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
-            else
-                StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL)
+            StaggeredGridLayoutManager(cols, StaggeredGridLayoutManager.VERTICAL)
     }
 
-    // ── Data observers ───────────────────────────────────────────────────────
+    // ── Observe data ─────────────────────────────────────────────────────────
 
     private fun observeData() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -156,60 +163,55 @@ class HomeFragment : Fragment() {
             }
         }
         vm.categories.observe(viewLifecycleOwner) { buildCategoryChips(it) }
-        vm.tags.observe(viewLifecycleOwner) { buildTagChips(it) }
-        vm.noteCount.observe(viewLifecycleOwner) { count ->
-            b.tvNoteCount.text = "$count ghi chú"
-        }
+        vm.tags.observe(viewLifecycleOwner)       { buildTagChips(it) }
+        vm.noteCount.observe(viewLifecycleOwner)  { b.tvNoteCount.text = "$it ghi chú" }
     }
 
-    // ── Category chips ───────────────────────────────────────────────────────
+    // ── Chip helpers ──────────────────────────────────────────────────────────
+    //
+    // ONE signature, ONE callback: (isChecked: Boolean) -> Unit
+    // This avoids the type-mismatch between (Boolean)->Unit and ()->Unit.
+
+    private fun addChip(
+        parent: com.google.android.material.chip.ChipGroup,
+        label: String,
+        color: Int,
+        initialChecked: Boolean,
+        onChecked: (Boolean) -> Unit
+    ) {
+        val chip = Chip(requireContext()).apply {
+            text = label
+            isCheckable = true
+            isChecked = initialChecked
+            chipBackgroundColor = ColorStateList.valueOf(color)
+            setTextColor(Color.WHITE)
+        }
+        chip.setOnCheckedChangeListener { _, checked -> onChecked(checked) }
+        parent.addView(chip)
+    }
 
     private fun buildCategoryChips(categories: List<Category>) {
         b.chipGroupCategories.removeAllViews()
-        addFilterChip("Tất cả", 0xFF607D8B.toInt(), true) { vm.setCategory(null) }
+        // "All" chip
+        addChip(b.chipGroupCategories, "Tất cả", 0xFF607D8B.toInt(), true) { checked ->
+            if (checked) vm.setCategory(null)
+        }
         categories.forEach { cat ->
-            addFilterChip(cat.name, cat.color, false) { vm.setCategory(cat.id) }
+            addChip(b.chipGroupCategories, cat.name, cat.color, false) { checked ->
+                if (checked) vm.setCategory(cat.id)
+            }
         }
     }
-
-    // ── Tag chips ────────────────────────────────────────────────────────────
 
     private fun buildTagChips(tags: List<Tag>) {
         b.chipGroupTags.removeAllViews()
-        if (tags.isEmpty()) {
-            b.chipGroupTags.visibility = View.GONE; return
-        }
+        if (tags.isEmpty()) { b.chipGroupTags.visibility = View.GONE; return }
         b.chipGroupTags.visibility = View.VISIBLE
         tags.forEach { tag ->
-            addFilterChip("#${tag.name}", tag.color, false) { checked ->
+            addChip(b.chipGroupTags, "#${tag.name}", tag.color, false) { checked ->
                 vm.setTag(if (checked) tag.id else null)
             }
         }
-    }
-
-    private fun addFilterChip(
-        text: String, color: Int, checked: Boolean,
-        onChecked: ((Boolean) -> Unit)? = null,
-        onCheckedSimple: (() -> Unit)? = null
-    ) {
-        val chip = Chip(requireContext()).apply {
-            this.text = text
-            isCheckable = true
-            isChecked = checked
-            chipBackgroundColor = android.content.res.ColorStateList.valueOf(color)
-            setTextColor(0xFFFFFFFF.toInt())
-        }
-        chip.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                onChecked?.invoke(isChecked)
-                onCheckedSimple?.invoke()
-            }
-        }
-        if (onChecked != null && onCheckedSimple == null)
-            chip.setOnCheckedChangeListener { _, v -> onChecked(v) }
-
-        val target = if (text.startsWith("#")) b.chipGroupTags else b.chipGroupCategories
-        target.addView(chip)
     }
 
     // ── Context menu ─────────────────────────────────────────────────────────
@@ -237,10 +239,9 @@ class HomeFragment : Fragment() {
             .setMessage("Bạn có chắc muốn xóa \"${note.title.ifEmpty { "ghi chú này" }}\"?")
             .setPositiveButton("Xóa") { _, _ ->
                 vm.deleteNote(note)
-                Snackbar.make(b.root, "Đã xóa ghi chú", Snackbar.LENGTH_SHORT).show()
+                Snackbar.make(b.root, "Đã xóa", Snackbar.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Hủy", null)
-            .show()
+            .setNegativeButton("Hủy", null).show()
     }
 
     private fun shareNote(note: Note) {
@@ -273,7 +274,7 @@ class HomeFragment : Fragment() {
             .setTitle("Nhập dữ liệu")
             .setItems(arrayOf("Nhập file .txt", "Nhập file .json")) { _, i ->
                 importFormat = if (i == 0) "txt" else "json"
-                val mime = if (i == 0) "text/plain" else "application/json"
+                val mime  = if (i == 0) "text/plain" else "application/json"
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = mime
