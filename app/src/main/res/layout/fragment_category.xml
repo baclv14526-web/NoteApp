@@ -7,11 +7,11 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <com.google.android.material.appbar.MaterialToolbar
+    <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        app:title="Danh mục &amp; Tags"
+        android:title="Danh mục &amp; Tags"
         android:background="@color/surface" />
 
     <androidx.core.widget.NestedScrollView
@@ -43,7 +43,7 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnAddCategory"
-                    style="@style/Widget.Material3.Button.TonalButton"
+                    style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="+ Thêm" />
@@ -80,7 +80,7 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnAddTag"
-                    style="@style/Widget.Material3.Button.TonalButton"
+                    style="@style/Widget.MaterialComponents.Button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="+ Thêm" />

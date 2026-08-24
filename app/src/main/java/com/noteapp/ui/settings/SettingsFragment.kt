@@ -48,8 +48,13 @@ class SettingsFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        _b = FragmentSettingsBinding.inflate(inflater, container, false)
-        return b.root
+        try {
+            _b = FragmentSettingsBinding.inflate(inflater, container, false)
+            return b.root
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsFragment", "Error inflating FragmentSettingsBinding", e)
+            throw e
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

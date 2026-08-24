@@ -81,8 +81,13 @@ class HomeFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        _b = FragmentHomeBinding.inflate(inflater, container, false)
-        return b.root
+        try {
+            _b = FragmentHomeBinding.inflate(inflater, container, false)
+            return b.root
+        } catch (e: Exception) {
+            Log.e(TAG, "Error inflating FragmentHomeBinding", e)
+            throw e
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

@@ -11,13 +11,13 @@
         android:layout_height="wrap_content"
         android:background="@color/surface">
 
-        <com.google.android.material.appbar.MaterialToolbar
+        <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="@drawable/ic_arrow_back"
-            app:navigationContentDescription="Quay lại"
-            app:title=""
+            android:navigationIcon="@drawable/ic_arrow_back"
+            android:navigationContentDescription="Quay lại"
+            android:title=""
             android:background="@color/surface" />
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -81,7 +81,7 @@
                 <!-- Category selector -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCategory"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
@@ -104,7 +104,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnAddTag"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="+ Tag" />
@@ -125,7 +125,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnBgColor"
-                            style="@style/Widget.Material3.Button.TonalButton"
+                            style="@style/Widget.MaterialComponents.Button"
                             android:layout_width="wrap_content"
                             android:layout_height="40dp"
                             android:text="🎨 Nền"
@@ -133,7 +133,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnTextColor"
-                            style="@style/Widget.Material3.Button.TonalButton"
+                            style="@style/Widget.MaterialComponents.Button"
                             android:layout_width="wrap_content"
                             android:layout_height="40dp"
                             android:layout_marginStart="8dp"
@@ -142,7 +142,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnPickImage"
-                            style="@style/Widget.Material3.Button.TonalButton"
+                            style="@style/Widget.MaterialComponents.Button"
                             android:layout_width="wrap_content"
                             android:layout_height="40dp"
                             android:layout_marginStart="8dp"
@@ -151,7 +151,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnRemoveBg"
-                            style="@style/Widget.Material3.Button.TonalButton"
+                            style="@style/Widget.MaterialComponents.Button"
                             android:layout_width="wrap_content"
                             android:layout_height="40dp"
                             android:layout_marginStart="8dp"

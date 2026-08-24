@@ -30,7 +30,6 @@
         app:labelVisibilityMode="labeled"
         app:itemRippleColor="@color/primary"
         app:itemIconTint="@color/bottom_nav_selector"
-        app:itemTextColor="@color/bottom_nav_selector"
-        style="@style/Widget.Material3.BottomNavigationView" />
+        app:itemTextColor="@color/bottom_nav_selector" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

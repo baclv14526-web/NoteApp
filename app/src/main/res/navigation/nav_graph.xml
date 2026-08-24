@@ -13,16 +13,10 @@
         tools:layout="@layout/fragment_home">
         <action
             android:id="@+id/action_homeFragment_to_editorFragment"
-            app:destination="@id/editorFragment"
-            app:enterAnim="@anim/slide_in_right"
-            app:exitAnim="@anim/slide_out_left"
-            app:popEnterAnim="@anim/slide_in_left"
-            app:popExitAnim="@anim/slide_out_right" />
+            app:destination="@id/editorFragment" />
         <action
             android:id="@+id/action_homeFragment_to_pinFragment"
-            app:destination="@id/pinFragment"
-            app:enterAnim="@anim/slide_in_up"
-            app:popExitAnim="@anim/slide_out_down" />
+            app:destination="@id/pinFragment" />
         <action
             android:id="@+id/action_homeFragment_to_categoryFragment"
             app:destination="@id/categoryFragment" />

@@ -13,12 +13,12 @@
         android:background="@color/surface"
         app:elevation="4dp">
 
-        <com.google.android.material.appbar.MaterialToolbar
+        <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:title="📒 Ghi Chú"
-            app:titleTextColor="@color/on_surface"
+            android:title="📒 Ghi Chú"
+            android:titleTextColor="@color/on_surface"
             android:background="@color/surface" />
 
         <androidx.appcompat.widget.SearchView
