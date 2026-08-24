@@ -6,10 +6,12 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+  release:
+    types: [created]
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build APKs
     runs-on: ubuntu-latest
 
     steps:
@@ -46,7 +48,7 @@ jobs:
 
       # ── 5. Build Debug APK ───────────────────────────────────────────────────
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --info --no-daemon
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       # ── 6. Upload Debug APK ──────────────────────────────────────────────────
       - name: Upload Debug APK
@@ -67,15 +69,18 @@ jobs:
           path: app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 30
 
-  # ── Job ký APK (chỉ chạy khi có secrets) ────────────────────────────────────
+  # ── Job ký APK (chỉ chạy khi có secrets và push đến main/master) ─────────────
   sign-release:
-    name: Sign & Release APK
+    name: Sign Release APK
     needs: build
     runs-on: ubuntu-latest
     if: |
-      github.ref == 'refs/heads/main' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
       github.event_name == 'push' &&
-      vars.HAS_KEYSTORE == 'true'
+      secrets.KEYSTORE_BASE64 != '' &&
+      secrets.KEYSTORE_PASSWORD != '' &&
+      secrets.KEY_ALIAS != '' &&
+      secrets.KEY_PASSWORD != ''
 
     steps:
       - name: Checkout
@@ -101,7 +106,7 @@ jobs:
       - name: Build signed release APK
         run: |
           ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=keystore.jks \
+            -Pandroid.injected.signing.store.file=app/keystore.jks \
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }} \
@@ -112,7 +117,7 @@ jobs:
         with:
           name: NoteApp-release-signed-${{ github.run_number }}
           path: app/build/outputs/apk/release/app-release.apk
-          retention-days: 60
+          retention-days: 90
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -120,5 +125,11 @@ jobs:
         with:
           files: app/build/outputs/apk/release/app-release.apk
           generate_release_notes: true
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f app/keystore.jks
