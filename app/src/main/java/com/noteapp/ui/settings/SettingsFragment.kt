@@ -3,7 +3,9 @@ package com.noteapp.ui.settings
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.os.bundleOf
@@ -31,28 +33,31 @@ class SettingsFragment : Fragment() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                lifecycleScope.launch {
+                viewLifecycleOwner.lifecycleScope.launch {
                     val util = ExportImportUtil(
                         requireContext(),
                         (requireActivity().application as NoteApplication).repository
                     )
                     val count = util.importFromUri(uri, importFormat)
-                    Toast.makeText(context, "Đã nhập $count ghi chú", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Đã nhập $count ghi chú", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
-    override fun onCreateView(i: LayoutInflater, c: ViewGroup?, s: Bundle?): View {
-        _b = FragmentSettingsBinding.inflate(i, c, false); return b.root
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _b = FragmentSettingsBinding.inflate(inflater, container, false)
+        return b.root
     }
 
-    override fun onViewCreated(view: View, saved: Bundle?) {
-        super.onViewCreated(view, saved)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         security = SecurityManager(requireContext())
         setupPinSection()
         setupExportImport()
-        updatePinStatus()
+        refreshPinStatus()
     }
 
     private fun setupPinSection() {
@@ -64,23 +69,25 @@ class SettingsFragment : Fragment() {
         }
         b.btnClearPin.setOnClickListener {
             if (!security.hasPin()) {
-                Toast.makeText(context, "Chưa có mã PIN", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Chưa có mã PIN", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Xóa mã PIN")
-                .setMessage("Tất cả ghi chú bảo mật sẽ không còn được bảo vệ.")
+                .setMessage("Ghi chú bảo mật sẽ không còn được bảo vệ.")
                 .setPositiveButton("Xóa PIN") { _, _ ->
                     security.clearPin()
-                    updatePinStatus()
-                    Toast.makeText(context, "Đã xóa mã PIN", Toast.LENGTH_SHORT).show()
+                    refreshPinStatus()
+                    Toast.makeText(requireContext(), "Đã xóa mã PIN", Toast.LENGTH_SHORT).show()
                 }
-                .setNegativeButton("Hủy", null).show()
+                .setNegativeButton("Hủy", null)
+                .show()
         }
     }
 
-    private fun updatePinStatus() {
-        b.tvPinStatus.text = if (security.hasPin()) "✅ Đã cài mã PIN" else "❌ Chưa có mã PIN"
+    private fun refreshPinStatus() {
+        b.tvPinStatus.text =
+            if (security.hasPin()) "✅ Đã cài mã PIN" else "❌ Chưa có mã PIN"
         b.tvBiometricStatus.text =
             if (security.isBiometricAvailable(requireContext())) "✅ Vân tay khả dụng"
             else "❌ Thiết bị không hỗ trợ"
@@ -94,7 +101,7 @@ class SettingsFragment : Fragment() {
     }
 
     private fun doExport(fmt: String) {
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             ExportImportUtil(
                 requireContext(),
                 (requireActivity().application as NoteApplication).repository
@@ -112,5 +119,8 @@ class SettingsFragment : Fragment() {
         importLauncher.launch(intent)
     }
 
-    override fun onDestroyView() { super.onDestroyView(); _b = null }
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _b = null
+    }
 }

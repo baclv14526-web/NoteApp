@@ -24,6 +24,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.paging.LoadState
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.noteapp.NoteApplication
@@ -31,6 +32,7 @@ import com.noteapp.R
 import com.noteapp.data.db.entities.Category
 import com.noteapp.data.db.entities.Note
 import com.noteapp.data.db.entities.Tag
+import com.noteapp.data.repository.NoteRepository.Companion.NO_FILTER
 import com.noteapp.databinding.FragmentHomeBinding
 import com.noteapp.utils.ExportImportUtil
 import kotlinx.coroutines.flow.collectLatest
@@ -45,16 +47,16 @@ class HomeFragment : Fragment() {
         HomeViewModelFactory((requireActivity().application as NoteApplication).repository)
     }
 
-    private lateinit var adapter: NoteAdapter
-    private var importFormat = "json"
+    private lateinit var noteAdapter: NoteAdapter
     private var isGridLayout = true
+    private var importFormat = "json"
 
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                lifecycleScope.launch {
+                viewLifecycleOwner.lifecycleScope.launch {
                     val util = ExportImportUtil(
                         requireContext(),
                         (requireActivity().application as NoteApplication).repository
@@ -82,10 +84,10 @@ class HomeFragment : Fragment() {
         observeData()
     }
 
-    // ── RecyclerView ─────────────────────────────────────────────────────────
+    // ── RecyclerView ──────────────────────────────────────────────────────────
 
     private fun setupRecyclerView() {
-        adapter = NoteAdapter(
+        noteAdapter = NoteAdapter(
             onClick = { note ->
                 if (note.isSecure) {
                     findNavController().navigate(
@@ -100,18 +102,18 @@ class HomeFragment : Fragment() {
         )
         b.recyclerView.layoutManager =
             StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
-        b.recyclerView.adapter = adapter
+        b.recyclerView.adapter = noteAdapter
 
-        adapter.addLoadStateListener { states ->
+        noteAdapter.addLoadStateListener { states ->
             b.progressBar.visibility =
                 if (states.refresh is LoadState.Loading) View.VISIBLE else View.GONE
             b.tvEmpty.visibility =
-                if (states.refresh is LoadState.NotLoading && adapter.itemCount == 0)
+                if (states.refresh is LoadState.NotLoading && noteAdapter.itemCount == 0)
                     View.VISIBLE else View.GONE
         }
     }
 
-    // ── Search ───────────────────────────────────────────────────────────────
+    // ── Search ────────────────────────────────────────────────────────────────
 
     private fun setupSearch() {
         b.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
@@ -129,7 +131,7 @@ class HomeFragment : Fragment() {
         b.fabAdd.setOnClickListener { openEditor(-1L) }
     }
 
-    // ── Menu ─────────────────────────────────────────────────────────────────
+    // ── Menu ──────────────────────────────────────────────────────────────────
 
     private fun setupMenu() {
         requireActivity().addMenuProvider(object : MenuProvider {
@@ -149,17 +151,19 @@ class HomeFragment : Fragment() {
 
     private fun toggleLayout() {
         isGridLayout = !isGridLayout
-        val cols = if (isGridLayout) 2 else 1
         b.recyclerView.layoutManager =
-            StaggeredGridLayoutManager(cols, StaggeredGridLayoutManager.VERTICAL)
+            StaggeredGridLayoutManager(
+                if (isGridLayout) 2 else 1,
+                StaggeredGridLayoutManager.VERTICAL
+            )
     }
 
-    // ── Observe data ─────────────────────────────────────────────────────────
+    // ── Observers ─────────────────────────────────────────────────────────────
 
     private fun observeData() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                vm.notes.collectLatest { adapter.submitData(it) }
+                vm.notes.collectLatest { noteAdapter.submitData(it) }
             }
         }
         vm.categories.observe(viewLifecycleOwner) { buildCategoryChips(it) }
@@ -167,37 +171,15 @@ class HomeFragment : Fragment() {
         vm.noteCount.observe(viewLifecycleOwner)  { b.tvNoteCount.text = "$it ghi chú" }
     }
 
-    // ── Chip helpers ──────────────────────────────────────────────────────────
-    //
-    // ONE signature, ONE callback: (isChecked: Boolean) -> Unit
-    // This avoids the type-mismatch between (Boolean)->Unit and ()->Unit.
-
-    private fun addChip(
-        parent: com.google.android.material.chip.ChipGroup,
-        label: String,
-        color: Int,
-        initialChecked: Boolean,
-        onChecked: (Boolean) -> Unit
-    ) {
-        val chip = Chip(requireContext()).apply {
-            text = label
-            isCheckable = true
-            isChecked = initialChecked
-            chipBackgroundColor = ColorStateList.valueOf(color)
-            setTextColor(Color.WHITE)
-        }
-        chip.setOnCheckedChangeListener { _, checked -> onChecked(checked) }
-        parent.addView(chip)
-    }
+    // ── Chips ─────────────────────────────────────────────────────────────────
 
     private fun buildCategoryChips(categories: List<Category>) {
         b.chipGroupCategories.removeAllViews()
-        // "All" chip
-        addChip(b.chipGroupCategories, "Tất cả", 0xFF607D8B.toInt(), true) { checked ->
-            if (checked) vm.setCategory(null)
+        addFilterChip(b.chipGroupCategories, "Tất cả", 0xFF607D8B.toInt(), true) { checked ->
+            if (checked) vm.setCategory(NO_FILTER)
         }
         categories.forEach { cat ->
-            addChip(b.chipGroupCategories, cat.name, cat.color, false) { checked ->
+            addFilterChip(b.chipGroupCategories, cat.name, cat.color, false) { checked ->
                 if (checked) vm.setCategory(cat.id)
             }
         }
@@ -205,43 +187,69 @@ class HomeFragment : Fragment() {
 
     private fun buildTagChips(tags: List<Tag>) {
         b.chipGroupTags.removeAllViews()
-        if (tags.isEmpty()) { b.chipGroupTags.visibility = View.GONE; return }
+        if (tags.isEmpty()) {
+            b.chipGroupTags.visibility = View.GONE
+            return
+        }
         b.chipGroupTags.visibility = View.VISIBLE
         tags.forEach { tag ->
-            addChip(b.chipGroupTags, "#${tag.name}", tag.color, false) { checked ->
-                vm.setTag(if (checked) tag.id else null)
+            addFilterChip(b.chipGroupTags, "#${tag.name}", tag.color, false) { checked ->
+                vm.setTag(if (checked) tag.id else NO_FILTER)
             }
         }
     }
 
-    // ── Context menu ─────────────────────────────────────────────────────────
+    // BUG FIX: Dùng một callback (Boolean)->Unit thay vì hai callback khác kiểu
+    // Trước đây: onChecked:((Boolean)->Unit)? và onCheckedSimple:(()->Unit)?
+    // → trailing lambda { checked -> ... } không khớp kiểu ()->Unit → COMPILE ERROR
+    private fun addFilterChip(
+        group: ChipGroup,
+        label: String,
+        color: Int,
+        initialChecked: Boolean,
+        onCheckedChange: (Boolean) -> Unit
+    ) {
+        val chip = Chip(requireContext()).apply {
+            text           = label
+            isCheckable    = true
+            isChecked      = initialChecked
+            chipBackgroundColor = ColorStateList.valueOf(color)
+            setTextColor(Color.WHITE)
+        }
+        chip.setOnCheckedChangeListener { _, isChecked -> onCheckedChange(isChecked) }
+        group.addView(chip)
+    }
+
+    // ── Context menu ──────────────────────────────────────────────────────────
 
     private fun showContextMenu(note: Note) {
-        val opts = arrayOf(
+        val options = arrayOf(
             if (note.isPinned) "Bỏ ghim" else "Ghim lên đầu",
             "Chia sẻ",
             "Xóa"
         )
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(note.title.ifEmpty { "Ghi chú" })
-            .setItems(opts) { _, i ->
-                when (i) {
+            .setItems(options) { _, which ->
+                when (which) {
                     0 -> vm.togglePin(note)
                     1 -> shareNote(note)
                     2 -> confirmDelete(note)
                 }
-            }.show()
+            }
+            .show()
     }
 
     private fun confirmDelete(note: Note) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Xóa ghi chú")
-            .setMessage("Bạn có chắc muốn xóa \"${note.title.ifEmpty { "ghi chú này" }}\"?")
+            .setMessage("Xóa \"${note.title.ifEmpty { "ghi chú này" }}\"?")
             .setPositiveButton("Xóa") { _, _ ->
                 vm.deleteNote(note)
                 Snackbar.make(b.root, "Đã xóa", Snackbar.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Hủy", null).show()
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 
     private fun shareNote(note: Note) {
@@ -253,34 +261,36 @@ class HomeFragment : Fragment() {
         startActivity(Intent.createChooser(intent, "Chia sẻ ghi chú"))
     }
 
-    // ── Export / Import ──────────────────────────────────────────────────────
+    // ── Export / Import ───────────────────────────────────────────────────────
 
     private fun showExportDialog() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Xuất dữ liệu")
-            .setItems(arrayOf("Xuất file .txt", "Xuất file .json")) { _, i ->
-                val fmt = if (i == 0) "txt" else "json"
-                lifecycleScope.launch {
+            .setItems(arrayOf("Xuất file .txt", "Xuất file .json")) { _, which ->
+                val fmt = if (which == 0) "txt" else "json"
+                viewLifecycleOwner.lifecycleScope.launch {
                     ExportImportUtil(
                         requireContext(),
                         (requireActivity().application as NoteApplication).repository
                     ).exportNotes(fmt)
                 }
-            }.show()
+            }
+            .show()
     }
 
     private fun showImportDialog() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Nhập dữ liệu")
-            .setItems(arrayOf("Nhập file .txt", "Nhập file .json")) { _, i ->
-                importFormat = if (i == 0) "txt" else "json"
-                val mime  = if (i == 0) "text/plain" else "application/json"
+            .setItems(arrayOf("Nhập file .txt", "Nhập file .json")) { _, which ->
+                importFormat = if (which == 0) "txt" else "json"
+                val mime = if (which == 0) "text/plain" else "application/json"
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = mime
                 }
                 importLauncher.launch(intent)
-            }.show()
+            }
+            .show()
     }
 
     private fun openEditor(noteId: Long) {

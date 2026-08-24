@@ -4,7 +4,11 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import com.noteapp.data.db.AppDatabase
-import com.noteapp.data.db.entities.*
+import com.noteapp.data.db.entities.Category
+import com.noteapp.data.db.entities.Note
+import com.noteapp.data.db.entities.NoteTagCrossRef
+import com.noteapp.data.db.entities.NoteWithTags
+import com.noteapp.data.db.entities.Tag
 import kotlinx.coroutines.flow.Flow
 
 class NoteRepository(private val db: AppDatabase) {
@@ -13,52 +17,57 @@ class NoteRepository(private val db: AppDatabase) {
     private val categoryDao = db.categoryDao()
     private val tagDao      = db.tagDao()
 
-    // ─── Notes ───────────────────────────────────────────────────────────────
+    companion object {
+        // Sentinel: -1 nghĩa là "không lọc"
+        const val NO_FILTER = -1L
+    }
+
+    // ── Notes (Paging) ────────────────────────────────────────────────────────
 
     fun getPagedNotes(
-        categoryId: Long? = null,
-        tagId: Long? = null,
+        categoryId: Long = NO_FILTER,
+        tagId: Long = NO_FILTER,
         search: String = ""
     ): Flow<PagingData<Note>> = Pager(
         config = PagingConfig(
-            pageSize = 20,
+            pageSize         = 20,
             prefetchDistance = 5,
             enablePlaceholders = false,
-            initialLoadSize = 40
+            initialLoadSize  = 40
         ),
         pagingSourceFactory = { noteDao.getAllNotesPaged(categoryId, tagId, search) }
     ).flow
 
+    // ── Notes (CRUD) ──────────────────────────────────────────────────────────
+
     suspend fun getNoteWithTags(id: Long): NoteWithTags? = noteDao.getNoteWithTags(id)
     suspend fun getNoteById(id: Long): Note?             = noteDao.getNoteById(id)
     suspend fun insertNote(note: Note): Long             = noteDao.insertNote(note)
-    suspend fun updateNote(note: Note)                   = noteDao.updateNote(note)
-    suspend fun deleteNote(note: Note)                   = noteDao.deleteNote(note)
-    suspend fun deleteNoteById(id: Long)                 = noteDao.deleteNoteById(id)
+    suspend fun updateNote(note: Note)                   { noteDao.updateNote(note) }
+    suspend fun deleteNote(note: Note)                   { noteDao.deleteNote(note) }
+    suspend fun deleteNoteById(id: Long)                 { noteDao.deleteNoteById(id) }
     fun getNoteCount(): Flow<Int>                        = noteDao.getNoteCount()
     suspend fun getAllNotesForExport(): List<NoteWithTags> = noteDao.getAllNotesForExport()
 
-    // ─── Tags per note ───────────────────────────────────────────────────────
+    // ── Tags per note ─────────────────────────────────────────────────────────
 
-    suspend fun insertNoteTagCrossRef(crossRef: NoteTagCrossRef) =
-        tagDao.insertNoteTagCrossRef(crossRef)
+    suspend fun insertNoteTagCrossRef(ref: NoteTagCrossRef) { tagDao.insertNoteTagCrossRef(ref) }
+    suspend fun deleteTagsForNote(noteId: Long)              { tagDao.deleteTagsForNote(noteId) }
 
-    suspend fun deleteTagsForNote(noteId: Long) = tagDao.deleteTagsForNote(noteId)
-
-    // ─── Categories ──────────────────────────────────────────────────────────
+    // ── Categories ────────────────────────────────────────────────────────────
 
     fun getAllCategories(): Flow<List<Category>>       = categoryDao.getAllCategories()
     suspend fun getAllCategoriesSync(): List<Category> = categoryDao.getAllCategoriesSync()
     suspend fun insertCategory(c: Category): Long     = categoryDao.insertCategory(c)
-    suspend fun updateCategory(c: Category)           = categoryDao.updateCategory(c)
-    suspend fun deleteCategory(c: Category)           = categoryDao.deleteCategory(c)
+    suspend fun updateCategory(c: Category)           { categoryDao.updateCategory(c) }
+    suspend fun deleteCategory(c: Category)           { categoryDao.deleteCategory(c) }
 
-    // ─── Tags ─────────────────────────────────────────────────────────────────
+    // ── Tags ──────────────────────────────────────────────────────────────────
 
-    fun getAllTags(): Flow<List<Tag>>             = tagDao.getAllTags()
-    suspend fun getAllTagsSync(): List<Tag>       = tagDao.getAllTagsSync()
+    fun getAllTags(): Flow<List<Tag>>              = tagDao.getAllTags()
+    suspend fun getAllTagsSync(): List<Tag>        = tagDao.getAllTagsSync()
     suspend fun getTagsForNote(id: Long): List<Tag> = tagDao.getTagsForNote(id)
-    suspend fun insertTag(t: Tag): Long          = tagDao.insertTag(t)
-    suspend fun updateTag(t: Tag)                = tagDao.updateTag(t)
-    suspend fun deleteTag(t: Tag)                = tagDao.deleteTag(t)
+    suspend fun insertTag(t: Tag): Long           = tagDao.insertTag(t)
+    suspend fun updateTag(t: Tag)                 { tagDao.updateTag(t) }
+    suspend fun deleteTag(t: Tag)                 { tagDao.deleteTag(t) }
 }
