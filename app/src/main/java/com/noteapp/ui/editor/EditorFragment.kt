@@ -83,22 +83,21 @@ class EditorFragment : Fragment() {
         b.btnLock.setOnClickListener { vm.toggleSecure() }
     }
 
-    // ── Menu ──────────────────────────────────────────────────────────────────
-
     private fun setupMenu() {
-        requireActivity().addMenuProvider(object : MenuProvider {
-            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-                menuInflater.inflate(R.menu.menu_editor, menu)
-            }
-            override fun onMenuItemSelected(item: MenuItem): Boolean {
-                return when (item.itemId) {
+        try {
+            b.toolbar.setNavigationOnClickListener { findNavController().popBackStack() }
+            b.toolbar.inflateMenu(R.menu.menu_editor)
+            b.toolbar.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
                     R.id.action_save   -> { saveNote(); true }
                     R.id.action_delete -> { confirmDelete(); true }
                     R.id.action_pin    -> { vm.togglePin(); true }
                     else               -> false
                 }
             }
-        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
+        } catch (t: Throwable) {
+            android.util.Log.e("EditorFragment", "setupMenu error", t)
+        }
     }
 
     // ── Observers ─────────────────────────────────────────────────────────────

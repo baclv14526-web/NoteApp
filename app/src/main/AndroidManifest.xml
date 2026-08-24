@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+    <!-- Tạm thời tắt quyền vân tay để test khởi động trên Realme 2 -->
+    <!-- <uses-permission android:name="android.permission.USE_BIOMETRIC" /> -->
+    <!-- <uses-permission android:name="android.permission.USE_FINGERPRINT" /> -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"

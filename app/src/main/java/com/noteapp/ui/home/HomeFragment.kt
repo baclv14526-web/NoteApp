@@ -89,14 +89,8 @@ class HomeFragment : Fragment() {
     private fun setupRecyclerView() {
         noteAdapter = NoteAdapter(
             onClick = { note ->
-                if (note.isSecure) {
-                    findNavController().navigate(
-                        R.id.action_homeFragment_to_pinFragment,
-                        bundleOf("noteId" to note.id, "isVerifying" to true)
-                    )
-                } else {
-                    openEditor(note.id)
-                }
+                // Tạm thời mở thẳng editor không qua màn hình khóa PIN
+                openEditor(note.id)
             },
             onLongClick = { note -> showContextMenu(note) }
         )

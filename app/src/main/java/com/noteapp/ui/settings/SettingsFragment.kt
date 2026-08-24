@@ -88,9 +88,7 @@ class SettingsFragment : Fragment() {
     private fun refreshPinStatus() {
         b.tvPinStatus.text =
             if (security.hasPin()) "✅ Đã cài mã PIN" else "❌ Chưa có mã PIN"
-        b.tvBiometricStatus.text =
-            if (security.isBiometricAvailable(requireContext())) "✅ Vân tay khả dụng"
-            else "❌ Thiết bị không hỗ trợ"
+        b.tvBiometricStatus.text = "Tạm thời tắt"
     }
 
     private fun setupExportImport() {
