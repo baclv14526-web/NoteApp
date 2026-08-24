@@ -27,14 +27,10 @@ class NoteAdapter(
             // Background image OR color
             if (!note.backgroundImageUri.isNullOrEmpty()) {
                 b.ivBackground.visibility = View.VISIBLE
-                try {
-                    Glide.with(b.root)
-                        .load(note.backgroundImageUri)
-                        .centerCrop()
-                        .into(b.ivBackground)
-                } catch (t: Throwable) {
-                    b.ivBackground.visibility = View.GONE
-                }
+                Glide.with(b.root)
+                    .load(note.backgroundImageUri)
+                    .centerCrop()
+                    .into(b.ivBackground)
                 b.cardNote.setCardBackgroundColor(0x00000000)
             } else {
                 b.ivBackground.visibility = View.GONE

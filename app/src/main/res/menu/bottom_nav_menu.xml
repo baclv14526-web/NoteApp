@@ -2,14 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/homeFragment"
-        android:icon="@drawable/ic_notes"
+        android:icon="@android:drawable/ic_menu_agenda"
         android:title="Ghi chú" />
     <item
         android:id="@+id/categoryFragment"
-        android:icon="@drawable/ic_category"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
         android:title="Danh mục" />
     <item
         android:id="@+id/settingsFragment"
-        android:icon="@drawable/ic_settings"
+        android:icon="@android:drawable/ic_menu_preferences"
         android:title="Cài đặt" />
 </menu>

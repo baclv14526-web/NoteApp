@@ -3,7 +3,6 @@ package com.noteapp.utils
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.google.gson.GsonBuilder
@@ -27,26 +26,20 @@ class ExportImportUtil(
     private val repository: NoteRepository
 ) {
     private val gson = GsonBuilder().setPrettyPrinting().create()
-    private val stampFmt   = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+    private val stampFmt = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
     private val displayFmt = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-
-    companion object {
-        private const val TAG = "ExportImportUtil"
-    }
 
     // ── Export ────────────────────────────────────────────────────────────────
 
     suspend fun exportNotes(format: String) {
         withContext(Dispatchers.IO) {
             try {
-                val notes    = repository.getAllNotesForExport()
-                val fileName = "NoteApp_${stampFmt.format(Date())}.$format"
+                val notes     = repository.getAllNotesForExport()
+                val fileName  = "NoteApp_${stampFmt.format(Date())}.$format"
+                val file      = File(context.getExternalFilesDir(null), fileName)
 
-                // getExternalFilesDir có thể null trên một số thiết bị Android 9
-                // (SD card bị ngắt, hoặc storage chưa mount) → fallback về internal storage
-                val dir  = context.getExternalFilesDir(null) ?: context.filesDir
-                val file = File(dir, fileName)
-
+                // BUG FIX: Tách khỏi when-expression để tránh return@withContext
+                // bên trong một when-expr trả về String (gây lỗi type inference)
                 val content: String
                 when (format) {
                     "txt"  -> content = buildTxtContent(notes)
@@ -57,18 +50,16 @@ class ExportImportUtil(
                 file.writeText(content, Charsets.UTF_8)
 
                 withContext(Dispatchers.Main) {
-                    try {
-                        shareFile(file, format)
-                        Toast.makeText(context, "Đã xuất: ${file.name}", Toast.LENGTH_LONG).show()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "shareFile failed", e)
-                        Toast.makeText(context, "Xuất thành công: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-                    }
+                    shareFile(file, format)
+                    Toast.makeText(
+                        context, "Đã xuất: ${file.name}", Toast.LENGTH_LONG
+                    ).show()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "exportNotes failed", e)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Lỗi xuất: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context, "Lỗi xuất: ${e.message}", Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -118,7 +109,7 @@ class ExportImportUtil(
         val uri = FileProvider.getUriForFile(
             context, "${context.packageName}.provider", file
         )
-        val mime  = if (format == "json") "application/json" else "text/plain"
+        val mime = if (format == "json") "application/json" else "text/plain"
         val share = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
@@ -136,14 +127,12 @@ class ExportImportUtil(
         return withContext(Dispatchers.IO) {
             try {
                 val content = readText(uri)
-                if (content.isBlank()) return@withContext 0
                 when (format) {
                     "txt"  -> importTxt(content)
                     "json" -> importJson(content)
                     else   -> 0
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "importFromUri failed", e)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Lỗi import: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
@@ -155,7 +144,7 @@ class ExportImportUtil(
     private fun readText(uri: Uri): String {
         val sb = StringBuilder()
         context.contentResolver.openInputStream(uri)?.use { stream ->
-            BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
+            BufferedReader(InputStreamReader(stream)).use { reader ->
                 var line = reader.readLine()
                 while (line != null) {
                     sb.appendLine(line)
@@ -181,70 +170,49 @@ class ExportImportUtil(
                 .joinToString("\n")
                 .trim()
             if (title.isNotBlank() || body.isNotBlank()) {
-                try {
-                    repository.insertNote(Note(title = title, content = body))
-                    count++
-                } catch (e: Exception) {
-                    Log.e(TAG, "importTxt: insert note failed", e)
-                }
+                repository.insertNote(Note(title = title, content = body))
+                count++
             }
         }
         return count
     }
 
     private suspend fun importJson(content: String): Int {
-        return try {
-            val mapType = object : TypeToken<Map<String, Any>>() {}.type
-            val data: Map<String, Any> = gson.fromJson(content, mapType)
+        val mapType = object : TypeToken<Map<String, Any>>() {}.type
+        val data: Map<String, Any> = gson.fromJson(content, mapType)
+
+        @Suppress("UNCHECKED_CAST")
+        val notesList = data["notes"] as? List<Map<String, Any>> ?: return 0
+
+        var count = 0
+        for (map in notesList) {
+            val title      = map["title"]   as? String  ?: ""
+            val body       = map["content"] as? String  ?: ""
+            val isPinned   = map["isPinned"] as? Boolean ?: false
+            val isSecure   = map["isSecure"] as? Boolean ?: false
+            val bgColor    = (map["backgroundColor"] as? Double)?.toInt() ?: 0xFFFFFFFF.toInt()
+            val txtColor   = (map["textColor"]       as? Double)?.toInt() ?: 0xFF212121.toInt()
+
+            val noteId = repository.insertNote(
+                Note(
+                    title           = title,
+                    content         = body,
+                    backgroundColor = bgColor,
+                    textColor       = txtColor,
+                    isPinned        = isPinned,
+                    isSecure        = isSecure
+                )
+            )
 
             @Suppress("UNCHECKED_CAST")
-            val notesList = data["notes"] as? List<Map<String, Any>> ?: return 0
-
-            var count = 0
-            for (map in notesList) {
-                try {
-                    val title    = map["title"]   as? String  ?: ""
-                    val body     = map["content"] as? String  ?: ""
-                    val isPinned = map["isPinned"] as? Boolean ?: false
-                    val isSecure = map["isSecure"] as? Boolean ?: false
-                    val bgColor  = (map["backgroundColor"] as? Double)?.toInt()
-                                    ?: (map["backgroundColor"] as? Long)?.toInt()
-                                    ?: 0xFFFFFFFF.toInt()
-                    val txtColor = (map["textColor"] as? Double)?.toInt()
-                                    ?: (map["textColor"] as? Long)?.toInt()
-                                    ?: 0xFF212121.toInt()
-
-                    val noteId = repository.insertNote(
-                        Note(
-                            title           = title,
-                            content         = body,
-                            backgroundColor = bgColor,
-                            textColor       = txtColor,
-                            isPinned        = isPinned,
-                            isSecure        = isSecure
-                        )
-                    )
-
-                    @Suppress("UNCHECKED_CAST")
-                    val tagNames = map["tags"] as? List<String> ?: emptyList()
-                    for (name in tagNames) {
-                        try {
-                            val existing = repository.getAllTagsSync().find { it.name == name }
-                            val tagId    = existing?.id ?: repository.insertTag(Tag(name = name))
-                            repository.insertNoteTagCrossRef(NoteTagCrossRef(noteId, tagId))
-                        } catch (e: Exception) {
-                            Log.e(TAG, "importJson: insert tag failed for '$name'", e)
-                        }
-                    }
-                    count++
-                } catch (e: Exception) {
-                    Log.e(TAG, "importJson: failed to import one note", e)
-                }
+            val tagNames = map["tags"] as? List<String> ?: emptyList()
+            for (name in tagNames) {
+                val existing = repository.getAllTagsSync().find { it.name == name }
+                val tagId    = existing?.id ?: repository.insertTag(Tag(name = name))
+                repository.insertNoteTagCrossRef(NoteTagCrossRef(noteId, tagId))
             }
-            count
-        } catch (e: Exception) {
-            Log.e(TAG, "importJson: parse failed", e)
-            0
+            count++
         }
+        return count
     }
 }

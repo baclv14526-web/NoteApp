@@ -2,7 +2,9 @@ package com.noteapp.utils
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import java.security.MessageDigest
 
@@ -11,48 +13,29 @@ class SecurityManager(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("note_security", Context.MODE_PRIVATE)
 
-    // ─── PIN (Tạm thời không kích hoạt) ───────────────────────────────────────
+    // ─── PIN ─────────────────────────────────────────────────────────────────
 
     fun setPin(pin: String) {
-        try {
-            prefs.edit().putString(KEY_PIN_HASH, hash(pin)).apply()
-        } catch (t: Throwable) {
-            Log.e(TAG, "setPin error", t)
-        }
+        prefs.edit().putString(KEY_PIN_HASH, hash(pin)).apply()
     }
 
     fun verifyPin(pin: String): Boolean {
-        return try {
-            val stored = prefs.getString(KEY_PIN_HASH, null) ?: return false
-            stored == hash(pin)
-        } catch (t: Throwable) {
-            Log.e(TAG, "verifyPin error", t)
-            false
-        }
+        val stored = prefs.getString(KEY_PIN_HASH, null) ?: return false
+        return stored == hash(pin)
     }
 
-    fun hasPin(): Boolean {
-        return try {
-            prefs.contains(KEY_PIN_HASH)
-        } catch (t: Throwable) {
-            Log.e(TAG, "hasPin error", t)
-            false
-        }
-    }
+    fun hasPin(): Boolean = prefs.contains(KEY_PIN_HASH)
 
-    fun clearPin() {
-        try {
-            prefs.edit().remove(KEY_PIN_HASH).apply()
-        } catch (t: Throwable) {
-            Log.e(TAG, "clearPin error", t)
-        }
-    }
+    fun clearPin() = prefs.edit().remove(KEY_PIN_HASH).apply()
 
-    // ─── Biometric (Tạm thời tắt toàn bộ) ─────────────────────────────────────
+    // ─── Biometric ───────────────────────────────────────────────────────────
 
     fun isBiometricAvailable(context: Context): Boolean {
-        // Tắt toàn bộ kiểm tra vân tay để test khởi động trên Realme 2
-        return false
+        val bm = BiometricManager.from(context)
+        return bm.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+            BiometricManager.Authenticators.BIOMETRIC_WEAK
+        ) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
     fun showBiometricPrompt(
@@ -63,22 +46,39 @@ class SecurityManager(context: Context) {
         onFailed: () -> Unit,
         onError: (String) -> Unit
     ) {
-        // Báo trực tiếp không khả dụng
-        onError("Tính năng bảo mật vân tay tạm thời tắt")
+        val executor = ContextCompat.getMainExecutor(fragment.requireContext())
+
+        val callback = object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                onSuccess()
+            }
+            override fun onAuthenticationFailed() { onFailed() }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                onError(errString.toString())
+            }
+        }
+
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(title)
+            .setSubtitle(subtitle)
+            .setNegativeButtonText("Dùng mã PIN")
+            .setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK
+            )
+            .build()
+
+        BiometricPrompt(fragment, executor, callback).authenticate(promptInfo)
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private fun hash(input: String): String = try {
+    private fun hash(input: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
-        bytes.joinToString("") { "%02x".format(it) }
-    } catch (t: Throwable) {
-        Log.e(TAG, "hash error", t)
-        input
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     companion object {
         private const val KEY_PIN_HASH = "pin_hash"
-        private const val TAG = "SecurityManager"
     }
 }

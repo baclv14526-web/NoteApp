@@ -15,7 +15,6 @@ import com.noteapp.data.db.entities.Category
 import com.noteapp.data.db.entities.Tag
 import com.noteapp.databinding.FragmentCategoryBinding
 import com.noteapp.databinding.ItemCategoryBinding
-import com.noteapp.databinding.ItemTagBinding
 
 class CategoryFragment : Fragment() {
 
@@ -166,11 +165,11 @@ class SimpleTagAdapter(
         notifyDataSetChanged()
     }
 
-    inner class VH(val binding: ItemTagBinding) :
+    inner class VH(val binding: ItemCategoryBinding) :
         RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val binding = ItemTagBinding.inflate(
+        val binding = ItemCategoryBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
         )
         return VH(binding)

@@ -88,7 +88,9 @@ class SettingsFragment : Fragment() {
     private fun refreshPinStatus() {
         b.tvPinStatus.text =
             if (security.hasPin()) "✅ Đã cài mã PIN" else "❌ Chưa có mã PIN"
-        b.tvBiometricStatus.text = "Tạm thời tắt"
+        b.tvBiometricStatus.text =
+            if (security.isBiometricAvailable(requireContext())) "✅ Vân tay khả dụng"
+            else "❌ Thiết bị không hỗ trợ"
     }
 
     private fun setupExportImport() {
@@ -110,15 +112,11 @@ class SettingsFragment : Fragment() {
     private fun pickFile(fmt: String) {
         importFormat = fmt
         val mime = if (fmt == "txt") "text/plain" else "application/json"
-        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = mime
         }
-        try {
-            importLauncher.launch(intent)
-        } catch (e: Exception) {
-            Toast.makeText(requireContext(), "Không thể mở trình chọn file", Toast.LENGTH_SHORT).show()
-        }
+        importLauncher.launch(intent)
     }
 
     override fun onDestroyView() {

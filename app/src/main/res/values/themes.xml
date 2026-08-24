@@ -23,4 +23,7 @@
         <item name="android:textStyle">bold</item>
     </style>
 
+    <!-- Bottom nav selector (color state list defined here as attr) -->
+    <attr name="bottom_nav_selector" format="reference|color" />
+
 </resources>

@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
@@ -45,18 +44,11 @@ class EditorFragment : Fragment() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                // takePersistableUriPermission chỉ hoạt động với ACTION_OPEN_DOCUMENT
-                // Trên Android 9 (Realme/Oppo ColorOS) đôi khi ném SecurityException
-                // → bọc try-catch, nếu lỗi vẫn dùng được URI trong session hiện tại
                 try {
                     requireContext().contentResolver.takePersistableUriPermission(
                         uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                } catch (e: SecurityException) {
-                    android.util.Log.w("EditorFragment", "takePersistableUriPermission failed (OK on Android 9): ${e.message}")
-                } catch (e: Exception) {
-                    android.util.Log.w("EditorFragment", "takePersistableUriPermission unexpected error: ${e.message}")
-                }
+                } catch (_: SecurityException) { /* already granted */ }
                 vm.updateBgImage(uri.toString())
                 loadBgImage(uri.toString())
             }
@@ -83,21 +75,22 @@ class EditorFragment : Fragment() {
         b.btnLock.setOnClickListener { vm.toggleSecure() }
     }
 
+    // ── Menu ──────────────────────────────────────────────────────────────────
+
     private fun setupMenu() {
-        try {
-            b.toolbar.setNavigationOnClickListener { findNavController().popBackStack() }
-            b.toolbar.inflateMenu(R.menu.menu_editor)
-            b.toolbar.setOnMenuItemClickListener { item ->
-                when (item.itemId) {
+        requireActivity().addMenuProvider(object : MenuProvider {
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.menu_editor, menu)
+            }
+            override fun onMenuItemSelected(item: MenuItem): Boolean {
+                return when (item.itemId) {
                     R.id.action_save   -> { saveNote(); true }
                     R.id.action_delete -> { confirmDelete(); true }
                     R.id.action_pin    -> { vm.togglePin(); true }
                     else               -> false
                 }
             }
-        } catch (t: Throwable) {
-            android.util.Log.e("EditorFragment", "setupMenu error", t)
-        }
+        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
     }
 
     // ── Observers ─────────────────────────────────────────────────────────────
@@ -177,22 +170,16 @@ class EditorFragment : Fragment() {
 
     private fun setupImagePicker() {
         b.btnPickImage.setOnClickListener {
-            // ACTION_OPEN_DOCUMENT yêu cầu DocumentsProvider – một số thiết bị Android 9
-            // (Realme, Oppo ColorOS cũ) không có hoặc crash khi launch.
-            // Dùng ACTION_GET_CONTENT làm primary (rộng hơn, ổn định hơn trên Android 9)
-            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/png", "image/jpeg", "image/webp"))
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/png","image/jpeg","image/webp"))
+                addFlags(
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
-            try {
-                imagePicker.launch(intent)
-            } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "Cannot open image picker", e)
-                com.google.android.material.snackbar.Snackbar.make(
-                    b.root, "Không thể mở thư viện ảnh", com.google.android.material.snackbar.Snackbar.LENGTH_SHORT
-                ).show()
-            }
+            imagePicker.launch(intent)
         }
     }
 

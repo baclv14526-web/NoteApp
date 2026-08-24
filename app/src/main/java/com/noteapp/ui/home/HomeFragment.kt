@@ -89,8 +89,14 @@ class HomeFragment : Fragment() {
     private fun setupRecyclerView() {
         noteAdapter = NoteAdapter(
             onClick = { note ->
-                // Tạm thời mở thẳng editor không qua màn hình khóa PIN
-                openEditor(note.id)
+                if (note.isSecure) {
+                    findNavController().navigate(
+                        R.id.action_homeFragment_to_pinFragment,
+                        bundleOf("noteId" to note.id, "isVerifying" to true)
+                    )
+                } else {
+                    openEditor(note.id)
+                }
             },
             onLongClick = { note -> showContextMenu(note) }
         )
@@ -128,19 +134,19 @@ class HomeFragment : Fragment() {
     // ── Menu ──────────────────────────────────────────────────────────────────
 
     private fun setupMenu() {
-        try {
-            b.toolbar.inflateMenu(R.menu.menu_home)
-            b.toolbar.setOnMenuItemClickListener { item ->
-                when (item.itemId) {
+        requireActivity().addMenuProvider(object : MenuProvider {
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.menu_home, menu)
+            }
+            override fun onMenuItemSelected(item: MenuItem): Boolean {
+                return when (item.itemId) {
                     R.id.action_export      -> { showExportDialog(); true }
                     R.id.action_import      -> { showImportDialog(); true }
                     R.id.action_toggle_grid -> { toggleLayout(); true }
                     else                    -> false
                 }
             }
-        } catch (t: Throwable) {
-            android.util.Log.e("HomeFragment", "setupMenu error", t)
-        }
+        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
     }
 
     private fun toggleLayout() {
@@ -168,39 +174,34 @@ class HomeFragment : Fragment() {
     // ── Chips ─────────────────────────────────────────────────────────────────
 
     private fun buildCategoryChips(categories: List<Category>) {
-        try {
-            b.chipGroupCategories.removeAllViews()
-            addFilterChip(b.chipGroupCategories, "Tất cả", 0xFF607D8B.toInt(), true) { checked ->
-                if (checked) vm.setCategory(NO_FILTER)
+        b.chipGroupCategories.removeAllViews()
+        addFilterChip(b.chipGroupCategories, "Tất cả", 0xFF607D8B.toInt(), true) { checked ->
+            if (checked) vm.setCategory(NO_FILTER)
+        }
+        categories.forEach { cat ->
+            addFilterChip(b.chipGroupCategories, cat.name, cat.color, false) { checked ->
+                if (checked) vm.setCategory(cat.id)
             }
-            categories.forEach { cat ->
-                addFilterChip(b.chipGroupCategories, cat.name, cat.color, false) { checked ->
-                    if (checked) vm.setCategory(cat.id)
-                }
-            }
-        } catch (t: Throwable) {
-            android.util.Log.e("HomeFragment", "buildCategoryChips error", t)
         }
     }
 
     private fun buildTagChips(tags: List<Tag>) {
-        try {
-            b.chipGroupTags.removeAllViews()
-            if (tags.isEmpty()) {
-                b.chipGroupTags.visibility = View.GONE
-                return
+        b.chipGroupTags.removeAllViews()
+        if (tags.isEmpty()) {
+            b.chipGroupTags.visibility = View.GONE
+            return
+        }
+        b.chipGroupTags.visibility = View.VISIBLE
+        tags.forEach { tag ->
+            addFilterChip(b.chipGroupTags, "#${tag.name}", tag.color, false) { checked ->
+                vm.setTag(if (checked) tag.id else NO_FILTER)
             }
-            b.chipGroupTags.visibility = View.VISIBLE
-            tags.forEach { tag ->
-                addFilterChip(b.chipGroupTags, "#${tag.name}", tag.color, false) { checked ->
-                    vm.setTag(if (checked) tag.id else NO_FILTER)
-                }
-            }
-        } catch (t: Throwable) {
-            android.util.Log.e("HomeFragment", "buildTagChips error", t)
         }
     }
 
+    // BUG FIX: Dùng một callback (Boolean)->Unit thay vì hai callback khác kiểu
+    // Trước đây: onChecked:((Boolean)->Unit)? và onCheckedSimple:(()->Unit)?
+    // → trailing lambda { checked -> ... } không khớp kiểu ()->Unit → COMPILE ERROR
     private fun addFilterChip(
         group: ChipGroup,
         label: String,
@@ -208,19 +209,15 @@ class HomeFragment : Fragment() {
         initialChecked: Boolean,
         onCheckedChange: (Boolean) -> Unit
     ) {
-        try {
-            val chip = Chip(requireContext()).apply {
-                text           = label
-                isCheckable    = true
-                isChecked      = initialChecked
-                chipBackgroundColor = ColorStateList.valueOf(color)
-                setTextColor(Color.WHITE)
-            }
-            chip.setOnCheckedChangeListener { _, isChecked -> onCheckedChange(isChecked) }
-            group.addView(chip)
-        } catch (t: Throwable) {
-            android.util.Log.e("HomeFragment", "addFilterChip error", t)
+        val chip = Chip(requireContext()).apply {
+            text           = label
+            isCheckable    = true
+            isChecked      = initialChecked
+            chipBackgroundColor = ColorStateList.valueOf(color)
+            setTextColor(Color.WHITE)
         }
+        chip.setOnCheckedChangeListener { _, isChecked -> onCheckedChange(isChecked) }
+        group.addView(chip)
     }
 
     // ── Context menu ──────────────────────────────────────────────────────────
@@ -287,17 +284,11 @@ class HomeFragment : Fragment() {
             .setItems(arrayOf("Nhập file .txt", "Nhập file .json")) { _, which ->
                 importFormat = if (which == 0) "txt" else "json"
                 val mime = if (which == 0) "text/plain" else "application/json"
-                // Dùng ACTION_GET_CONTENT thay vì ACTION_OPEN_DOCUMENT
-                // ổn định hơn trên Android 9 (Realme/Oppo ColorOS)
-                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = mime
                 }
-                try {
-                    importLauncher.launch(intent)
-                } catch (e: Exception) {
-                    Snackbar.make(b.root, "Không thể mở trình chọn file", Snackbar.LENGTH_SHORT).show()
-                }
+                importLauncher.launch(intent)
             }
             .show()
     }
