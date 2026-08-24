@@ -284,11 +284,17 @@ class HomeFragment : Fragment() {
             .setItems(arrayOf("Nhập file .txt", "Nhập file .json")) { _, which ->
                 importFormat = if (which == 0) "txt" else "json"
                 val mime = if (which == 0) "text/plain" else "application/json"
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                // Dùng ACTION_GET_CONTENT thay vì ACTION_OPEN_DOCUMENT
+                // ổn định hơn trên Android 9 (Realme/Oppo ColorOS)
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = mime
                 }
-                importLauncher.launch(intent)
+                try {
+                    importLauncher.launch(intent)
+                } catch (e: Exception) {
+                    Snackbar.make(b.root, "Không thể mở trình chọn file", Snackbar.LENGTH_SHORT).show()
+                }
             }
             .show()
     }

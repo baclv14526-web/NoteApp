@@ -112,11 +112,15 @@ class SettingsFragment : Fragment() {
     private fun pickFile(fmt: String) {
         importFormat = fmt
         val mime = if (fmt == "txt") "text/plain" else "application/json"
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = mime
         }
-        importLauncher.launch(intent)
+        try {
+            importLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Không thể mở trình chọn file", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onDestroyView() {
