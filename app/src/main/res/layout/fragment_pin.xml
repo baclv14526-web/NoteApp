@@ -78,7 +78,7 @@
         <!-- Biometric -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBiometric"
-            style="@style/Widget.MaterialComponents.Button"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="80dp"
             android:layout_height="64dp"
             android:layout_margin="8dp"
@@ -91,7 +91,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnDelete"
-            style="@style/Widget.MaterialComponents.Button"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="80dp"
             android:layout_height="64dp"
             android:layout_margin="8dp"

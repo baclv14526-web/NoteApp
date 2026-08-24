@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.NoteApp" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <style name="Theme.NoteApp" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorOnPrimary">@color/on_primary</item>
-        <item name="colorPrimaryVariant">@color/primary_container</item>
+        <item name="colorPrimaryContainer">@color/primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/on_primary_container</item>
         <item name="colorSecondary">@color/secondary</item>
         <item name="colorSurface">@color/surface</item>
         <item name="colorOnSurface">@color/on_surface</item>
@@ -14,7 +15,7 @@
     </style>
 
     <!-- PIN keypad button -->
-    <style name="PinButton" parent="Widget.MaterialComponents.Button">
+    <style name="PinButton" parent="Widget.Material3.Button.TonalButton">
         <item name="android:layout_width">80dp</item>
         <item name="android:layout_height">64dp</item>
         <item name="android:layout_margin">8dp</item>

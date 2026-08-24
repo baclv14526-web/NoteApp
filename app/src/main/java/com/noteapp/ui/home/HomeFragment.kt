@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -41,20 +40,11 @@ import kotlinx.coroutines.launch
 
 class HomeFragment : Fragment() {
 
-    companion object {
-        private const val TAG = "HomeFragment"
-    }
-
     private var _b: FragmentHomeBinding? = null
     private val b get() = _b!!
 
     private val vm: HomeViewModel by viewModels {
-        try {
-            HomeViewModelFactory((requireActivity().application as NoteApplication).repository)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to create HomeViewModel", e)
-            throw e
-        }
+        HomeViewModelFactory((requireActivity().application as NoteApplication).repository)
     }
 
     private lateinit var noteAdapter: NoteAdapter
@@ -81,29 +71,17 @@ class HomeFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        try {
-            _b = FragmentHomeBinding.inflate(inflater, container, false)
-            return b.root
-        } catch (e: Exception) {
-            Log.e(TAG, "Error inflating FragmentHomeBinding", e)
-            throw e
-        }
+        _b = FragmentHomeBinding.inflate(inflater, container, false)
+        return b.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        try {
-            Log.d(TAG, "HomeFragment onViewCreated started")
-            setupRecyclerView()
-            setupSearch()
-            setupFab()
-            setupMenu()
-            observeData()
-            Log.d(TAG, "HomeFragment onViewCreated completed")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in HomeFragment onViewCreated", e)
-            Snackbar.make(b.root, "Lỗi khởi tạo giao diện", Snackbar.LENGTH_LONG).show()
-        }
+        setupRecyclerView()
+        setupSearch()
+        setupFab()
+        setupMenu()
+        observeData()
     }
 
     // ── RecyclerView ──────────────────────────────────────────────────────────

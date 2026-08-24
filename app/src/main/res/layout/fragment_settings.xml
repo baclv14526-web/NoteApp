@@ -7,10 +7,10 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <androidx.appcompat.widget.Toolbar
+    <com.google.android.material.appbar.MaterialToolbar
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:title="Cài đặt"
+        app:title="Cài đặt"
         android:background="@color/surface" />
 
     <androidx.core.widget.NestedScrollView
@@ -67,7 +67,6 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnSetPin"
-                            style="@style/Widget.MaterialComponents.Button"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -76,7 +75,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnClearPin"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -114,7 +113,6 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnExportTxt"
-                            style="@style/Widget.MaterialComponents.Button"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -123,7 +121,6 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnExportJson"
-                            style="@style/Widget.MaterialComponents.Button"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -160,7 +157,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnImportTxt"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -169,7 +166,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnImportJson"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"

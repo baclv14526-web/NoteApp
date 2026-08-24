@@ -26,13 +26,8 @@ class PinFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        try {
-            _b = FragmentPinBinding.inflate(inflater, container, false)
-            return b.root
-        } catch (e: Exception) {
-            android.util.Log.e("PinFragment", "Error inflating FragmentPinBinding", e)
-            throw e
-        }
+        _b = FragmentPinBinding.inflate(inflater, container, false)
+        return b.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

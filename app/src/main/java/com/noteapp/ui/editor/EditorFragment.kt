@@ -58,13 +58,8 @@ class EditorFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        try {
-            _b = FragmentEditorBinding.inflate(inflater, container, false)
-            return b.root
-        } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "Error inflating FragmentEditorBinding", e)
-            throw e
-        }
+        _b = FragmentEditorBinding.inflate(inflater, container, false)
+        return b.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
