@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -40,11 +41,20 @@ import kotlinx.coroutines.launch
 
 class HomeFragment : Fragment() {
 
+    companion object {
+        private const val TAG = "HomeFragment"
+    }
+
     private var _b: FragmentHomeBinding? = null
     private val b get() = _b!!
 
     private val vm: HomeViewModel by viewModels {
-        HomeViewModelFactory((requireActivity().application as NoteApplication).repository)
+        try {
+            HomeViewModelFactory((requireActivity().application as NoteApplication).repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create HomeViewModel", e)
+            throw e
+        }
     }
 
     private lateinit var noteAdapter: NoteAdapter
@@ -77,11 +87,18 @@ class HomeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
-        setupSearch()
-        setupFab()
-        setupMenu()
-        observeData()
+        try {
+            Log.d(TAG, "HomeFragment onViewCreated started")
+            setupRecyclerView()
+            setupSearch()
+            setupFab()
+            setupMenu()
+            observeData()
+            Log.d(TAG, "HomeFragment onViewCreated completed")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in HomeFragment onViewCreated", e)
+            Snackbar.make(b.root, "Lỗi khởi tạo giao diện", Snackbar.LENGTH_LONG).show()
+        }
     }
 
     // ── RecyclerView ──────────────────────────────────────────────────────────
