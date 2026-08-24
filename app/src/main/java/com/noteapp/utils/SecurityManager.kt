@@ -2,6 +2,7 @@ package com.noteapp.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -32,10 +33,17 @@ class SecurityManager(context: Context) {
 
     fun isBiometricAvailable(context: Context): Boolean {
         val bm = BiometricManager.from(context)
-        return bm.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-            BiometricManager.Authenticators.BIOMETRIC_WEAK
-        ) == BiometricManager.BIOMETRIC_SUCCESS
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // API 30+: dùng Authenticators constants
+            bm.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK
+            ) == BiometricManager.BIOMETRIC_SUCCESS
+        } else {
+            // API 28–29: dùng canAuthenticate() không tham số (deprecated nhưng an toàn)
+            @Suppress("DEPRECATION")
+            bm.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
+        }
     }
 
     fun showBiometricPrompt(
@@ -58,15 +66,25 @@ class SecurityManager(context: Context) {
             }
         }
 
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(title)
-            .setSubtitle(subtitle)
-            .setNegativeButtonText("Dùng mã PIN")
-            .setAllowedAuthenticators(
-                BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.BIOMETRIC_WEAK
-            )
-            .build()
+        val promptInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // API 30+: dùng setAllowedAuthenticators
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle)
+                .setNegativeButtonText("Dùng mã PIN")
+                .setAllowedAuthenticators(
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK
+                )
+                .build()
+        } else {
+            // API 28–29: không dùng setAllowedAuthenticators
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle)
+                .setNegativeButtonText("Dùng mã PIN")
+                .build()
+        }
 
         BiometricPrompt(fragment, executor, callback).authenticate(promptInfo)
     }
