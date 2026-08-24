@@ -134,19 +134,19 @@ class HomeFragment : Fragment() {
     // ── Menu ──────────────────────────────────────────────────────────────────
 
     private fun setupMenu() {
-        requireActivity().addMenuProvider(object : MenuProvider {
-            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-                menuInflater.inflate(R.menu.menu_home, menu)
-            }
-            override fun onMenuItemSelected(item: MenuItem): Boolean {
-                return when (item.itemId) {
+        try {
+            b.toolbar.inflateMenu(R.menu.menu_home)
+            b.toolbar.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
                     R.id.action_export      -> { showExportDialog(); true }
                     R.id.action_import      -> { showImportDialog(); true }
                     R.id.action_toggle_grid -> { toggleLayout(); true }
                     else                    -> false
                 }
             }
-        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
+        } catch (t: Throwable) {
+            android.util.Log.e("HomeFragment", "setupMenu error", t)
+        }
     }
 
     private fun toggleLayout() {
@@ -174,34 +174,39 @@ class HomeFragment : Fragment() {
     // ── Chips ─────────────────────────────────────────────────────────────────
 
     private fun buildCategoryChips(categories: List<Category>) {
-        b.chipGroupCategories.removeAllViews()
-        addFilterChip(b.chipGroupCategories, "Tất cả", 0xFF607D8B.toInt(), true) { checked ->
-            if (checked) vm.setCategory(NO_FILTER)
-        }
-        categories.forEach { cat ->
-            addFilterChip(b.chipGroupCategories, cat.name, cat.color, false) { checked ->
-                if (checked) vm.setCategory(cat.id)
+        try {
+            b.chipGroupCategories.removeAllViews()
+            addFilterChip(b.chipGroupCategories, "Tất cả", 0xFF607D8B.toInt(), true) { checked ->
+                if (checked) vm.setCategory(NO_FILTER)
             }
+            categories.forEach { cat ->
+                addFilterChip(b.chipGroupCategories, cat.name, cat.color, false) { checked ->
+                    if (checked) vm.setCategory(cat.id)
+                }
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("HomeFragment", "buildCategoryChips error", t)
         }
     }
 
     private fun buildTagChips(tags: List<Tag>) {
-        b.chipGroupTags.removeAllViews()
-        if (tags.isEmpty()) {
-            b.chipGroupTags.visibility = View.GONE
-            return
-        }
-        b.chipGroupTags.visibility = View.VISIBLE
-        tags.forEach { tag ->
-            addFilterChip(b.chipGroupTags, "#${tag.name}", tag.color, false) { checked ->
-                vm.setTag(if (checked) tag.id else NO_FILTER)
+        try {
+            b.chipGroupTags.removeAllViews()
+            if (tags.isEmpty()) {
+                b.chipGroupTags.visibility = View.GONE
+                return
             }
+            b.chipGroupTags.visibility = View.VISIBLE
+            tags.forEach { tag ->
+                addFilterChip(b.chipGroupTags, "#${tag.name}", tag.color, false) { checked ->
+                    vm.setTag(if (checked) tag.id else NO_FILTER)
+                }
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("HomeFragment", "buildTagChips error", t)
         }
     }
 
-    // BUG FIX: Dùng một callback (Boolean)->Unit thay vì hai callback khác kiểu
-    // Trước đây: onChecked:((Boolean)->Unit)? và onCheckedSimple:(()->Unit)?
-    // → trailing lambda { checked -> ... } không khớp kiểu ()->Unit → COMPILE ERROR
     private fun addFilterChip(
         group: ChipGroup,
         label: String,
@@ -209,15 +214,19 @@ class HomeFragment : Fragment() {
         initialChecked: Boolean,
         onCheckedChange: (Boolean) -> Unit
     ) {
-        val chip = Chip(requireContext()).apply {
-            text           = label
-            isCheckable    = true
-            isChecked      = initialChecked
-            chipBackgroundColor = ColorStateList.valueOf(color)
-            setTextColor(Color.WHITE)
+        try {
+            val chip = Chip(requireContext()).apply {
+                text           = label
+                isCheckable    = true
+                isChecked      = initialChecked
+                chipBackgroundColor = ColorStateList.valueOf(color)
+                setTextColor(Color.WHITE)
+            }
+            chip.setOnCheckedChangeListener { _, isChecked -> onCheckedChange(isChecked) }
+            group.addView(chip)
+        } catch (t: Throwable) {
+            android.util.Log.e("HomeFragment", "addFilterChip error", t)
         }
-        chip.setOnCheckedChangeListener { _, isChecked -> onCheckedChange(isChecked) }
-        group.addView(chip)
     }
 
     // ── Context menu ──────────────────────────────────────────────────────────

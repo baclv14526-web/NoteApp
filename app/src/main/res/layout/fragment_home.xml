@@ -29,7 +29,7 @@
             android:layout_marginBottom="6dp"
             app:queryHint="Tìm kiếm tên, nội dung..."
             app:iconifiedByDefault="false"
-            app:searchIcon="@android:drawable/ic_menu_search"
+            app:searchIcon="@drawable/ic_search"
             android:background="@drawable/bg_search"
             app:queryBackground="@android:color/transparent" />
 
@@ -45,8 +45,7 @@
                 android:layout_height="wrap_content"
                 android:paddingHorizontal="12dp"
                 android:paddingVertical="4dp"
-                app:singleSelection="true"
-                app:selectionRequired="true" />
+                app:singleSelection="true" />
         </HorizontalScrollView>
 
         <!-- Tag chips -->
@@ -134,7 +133,7 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="20dp"
         android:text="Tạo ghi chú"
-        app:icon="@android:drawable/ic_input_add"
+        app:icon="@drawable/ic_add"
         app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

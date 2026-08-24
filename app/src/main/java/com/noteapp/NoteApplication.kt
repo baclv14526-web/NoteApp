@@ -17,14 +17,16 @@ class NoteApplication : Application() {
 
     /**
      * Bắt uncaught exception toàn cục, log ra Logcat trước khi crash.
-     * Giúp đọc được lỗi qua adb logcat ngay cả khi không có crash reporter.
      */
     private fun setupCrashHandler() {
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e("NoteApp_CRASH", "=== UNCAUGHT EXCEPTION on thread: ${thread.name} ===", throwable)
-            // Chuyển về handler mặc định để hệ thống xử lý bình thường
-            defaultHandler?.uncaughtException(thread, throwable)
+        try {
+            val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+            Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+                Log.e("NoteApp_CRASH", "=== UNCAUGHT EXCEPTION on thread: ${thread.name} ===", throwable)
+                defaultHandler?.uncaughtException(thread, throwable)
+            }
+        } catch (t: Throwable) {
+            Log.e("NoteApp", "setupCrashHandler error", t)
         }
     }
 }

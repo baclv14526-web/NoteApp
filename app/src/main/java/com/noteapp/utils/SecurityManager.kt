@@ -18,31 +18,51 @@ class SecurityManager(context: Context) {
     // ─── PIN ─────────────────────────────────────────────────────────────────
 
     fun setPin(pin: String) {
-        prefs.edit().putString(KEY_PIN_HASH, hash(pin)).apply()
+        try {
+            prefs.edit().putString(KEY_PIN_HASH, hash(pin)).apply()
+        } catch (t: Throwable) {
+            Log.e(TAG, "setPin error", t)
+        }
     }
 
     fun verifyPin(pin: String): Boolean {
-        val stored = prefs.getString(KEY_PIN_HASH, null) ?: return false
-        return stored == hash(pin)
+        return try {
+            val stored = prefs.getString(KEY_PIN_HASH, null) ?: return false
+            stored == hash(pin)
+        } catch (t: Throwable) {
+            Log.e(TAG, "verifyPin error", t)
+            false
+        }
     }
 
-    fun hasPin(): Boolean = prefs.contains(KEY_PIN_HASH)
+    fun hasPin(): Boolean {
+        return try {
+            prefs.contains(KEY_PIN_HASH)
+        } catch (t: Throwable) {
+            Log.e(TAG, "hasPin error", t)
+            false
+        }
+    }
 
-    fun clearPin() = prefs.edit().remove(KEY_PIN_HASH).apply()
+    fun clearPin() {
+        try {
+            prefs.edit().remove(KEY_PIN_HASH).apply()
+        } catch (t: Throwable) {
+            Log.e(TAG, "clearPin error", t)
+        }
+    }
 
     // ─── Biometric ───────────────────────────────────────────────────────────
 
     /**
      * Kiểm tra thiết bị có hỗ trợ vân tay không.
-     * - API 30+ : dùng Authenticators constants (BIOMETRIC_STRONG | BIOMETRIC_WEAK)
-     * - API 28-29: dùng canAuthenticate() không tham số (deprecated nhưng an toàn)
-     * - Bọc try-catch để tránh crash trên OEM lạ (Realme, Oppo ColorOS...)
+     * Dùng Throwable để bắt cả NoClassDefFoundError, NoSuchFieldError trên OEM Android 9.
      */
     fun isBiometricAvailable(context: Context): Boolean {
         return try {
             val bm = BiometricManager.from(context)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // API 30+
+                // API 30+: BIOMETRIC_STRONG (0x000F) | BIOMETRIC_WEAK (0x00FF) = 255
                 bm.canAuthenticate(
                     BiometricManager.Authenticators.BIOMETRIC_STRONG or
                     BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -52,17 +72,16 @@ class SecurityManager(context: Context) {
                 @Suppress("DEPRECATION")
                 bm.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "isBiometricAvailable: ${e.message}")
+        } catch (t: Throwable) {
+            // Bắt Throwable (kể cả ClassNotFound / NoSuchMethod / VerifyError trên Oppo/Realme)
+            Log.w(TAG, "isBiometricAvailable failed: ${t.message}")
             false
         }
     }
 
     /**
      * Hiển thị biometric prompt.
-     * - API 30+ : dùng setAllowedAuthenticators()
-     * - API 28-29: KHÔNG gọi setAllowedAuthenticators() (API chưa tồn tại)
-     * - Toàn bộ bọc try-catch để không crash khi OEM có bug
+     * Bọc toàn bộ trong try-catch (t: Throwable) để không bao giờ gây crash app.
      */
     fun showBiometricPrompt(
         fragment: Fragment,
@@ -73,57 +92,55 @@ class SecurityManager(context: Context) {
         onError: (String) -> Unit
     ) {
         try {
-            val executor = ContextCompat.getMainExecutor(fragment.requireContext())
+            val context = fragment.context ?: run {
+                onError("Không thể lấy ngữ cảnh ứng dụng")
+                return
+            }
+            val executor = ContextCompat.getMainExecutor(context)
 
             val callback = object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(
                     result: BiometricPrompt.AuthenticationResult
                 ) {
-                    try { onSuccess() } catch (e: Exception) {
-                        Log.e(TAG, "onSuccess callback error", e)
+                    try { onSuccess() } catch (t: Throwable) {
+                        Log.e(TAG, "onSuccess callback error", t)
                     }
                 }
 
                 override fun onAuthenticationFailed() {
-                    try { onFailed() } catch (e: Exception) {
-                        Log.e(TAG, "onFailed callback error", e)
+                    try { onFailed() } catch (t: Throwable) {
+                        Log.e(TAG, "onFailed callback error", t)
                     }
                 }
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    try { onError(errString.toString()) } catch (e: Exception) {
-                        Log.e(TAG, "onError callback error", e)
+                    try { onError(errString.toString()) } catch (t: Throwable) {
+                        Log.e(TAG, "onError callback error", t)
                     }
                 }
             }
 
-            val promptInfo: BiometricPrompt.PromptInfo =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    // API 30+: dùng setAllowedAuthenticators
-                    BiometricPrompt.PromptInfo.Builder()
-                        .setTitle(title)
-                        .setSubtitle(subtitle)
-                        .setNegativeButtonText("Dùng mã PIN")
-                        .setAllowedAuthenticators(
-                            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                            BiometricManager.Authenticators.BIOMETRIC_WEAK
-                        )
-                        .build()
-                } else {
-                    // API 28-29: KHÔNG dùng setAllowedAuthenticators
-                    BiometricPrompt.PromptInfo.Builder()
-                        .setTitle(title)
-                        .setSubtitle(subtitle)
-                        .setNegativeButtonText("Dùng mã PIN")
-                        .build()
-                }
+            val promptInfoBuilder = BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle)
+                .setNegativeButtonText("Dùng mã PIN")
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                promptInfoBuilder.setAllowedAuthenticators(
+                    BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK
+                )
+            }
+
+            val promptInfo = promptInfoBuilder.build()
             BiometricPrompt(fragment, executor, callback).authenticate(promptInfo)
 
-        } catch (e: Exception) {
-            Log.e(TAG, "showBiometricPrompt failed", e)
-            // Fallback: báo lỗi để UI chuyển về nhập PIN
-            onError("Vân tay không khả dụng trên thiết bị này")
+        } catch (t: Throwable) {
+            Log.e(TAG, "showBiometricPrompt error caught", t)
+            // Fallback an toàn: không crash, báo lỗi để fallback về mã PIN
+            try {
+                onError("Sinh trắc học không khả dụng, vui lòng dùng mã PIN")
+            } catch (_: Throwable) {}
         }
     }
 
@@ -132,9 +149,9 @@ class SecurityManager(context: Context) {
     private fun hash(input: String): String = try {
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
         bytes.joinToString("") { "%02x".format(it) }
-    } catch (e: Exception) {
-        Log.e(TAG, "hash error", e)
-        input // fallback (không nên xảy ra)
+    } catch (t: Throwable) {
+        Log.e(TAG, "hash error", t)
+        input
     }
 
     companion object {
