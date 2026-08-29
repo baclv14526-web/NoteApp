@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Thư mục dùng để lưu file export tạm thời trước khi chia sẻ qua Intent -->
+    <cache-path name="exports" path="exports/" />
+    <files-path name="exports_files" path="exports/" />
+</paths>

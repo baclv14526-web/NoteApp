@@ -1,4 +1,4 @@
-name: Android CI – Build & Sign APK
+name: Android CI – Build & Sign NoteApp APK
 
 on:
   push:
@@ -23,29 +23,26 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
-      # ── 3. Tạo gradlew nếu chưa có trong repo ────────────────────────────────
-      - name: Setup Gradle Wrapper
-        run: |
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version=8.4 --distribution-type=bin
-          fi
-          chmod +x gradlew
+      # ── 3. Cài Android SDK / command-line tools ──────────────────────────────
+      # actions/setup-java không tự cài Android SDK, nên cần bước riêng để có
+      # $ANDROID_HOME và apksigner dùng ở bước Verify APK.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      # ── 4. Cache Gradle ───────────────────────────────────────────────────────
-      - name: Cache Gradle
-        uses: actions/cache@v4
+      # ── 4. Cài Gradle 8.7 (KHÔNG dùng gradlew có sẵn trong repo) ─────────────
+      # Đây là điểm mấu chốt để tránh lỗi "Minimum supported Gradle version":
+      # thay vì tin vào gradle-wrapper.properties có thể bị lệch version do
+      # Android Studio tạo sẵn, ta cài thẳng Gradle 8.7 trên runner và gọi
+      # lệnh `gradle` trực tiếp trong toàn bộ workflow này.
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-
+          gradle-version: '8.7'
 
       # ── 5. Tạo CI keystore (tự động, không cần secrets) ──────────────────────
-      # APK được ký bằng key này → cài được trực tiếp trên Android
-      # Đây là development key, không dùng cho production/Play Store
+      # APK được ký bằng key này → cài được trực tiếp trên Android.
+      # Đây là development key, không dùng cho production/Play Store.
       - name: Generate CI Keystore
         run: |
           keytool -genkeypair \
@@ -63,11 +60,11 @@ jobs:
 
       # ── 6. Build Debug APK ────────────────────────────────────────────────────
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: gradle assembleDebug --stacktrace --no-daemon
 
       # ── 7. Build Release APK (Gradle tự ký với CI keystore) ──────────────────
       - name: Build Release APK (auto-signed)
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        run: gradle assembleRelease --stacktrace --no-daemon
         env:
           KEYSTORE_PASS: noteapp123
           KEY_ALIAS: noteapp
@@ -76,25 +73,26 @@ jobs:
       # ── 8. Verify APK có thể cài được ─────────────────────────────────────────
       - name: Verify APKs
         run: |
-          BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)
+          BUILD_TOOLS=$(ls "$ANDROID_HOME/build-tools/" | sort -V | tail -1)
           echo "Using build-tools: $BUILD_TOOLS"
 
           echo ""
           echo "=== Debug APK ==="
           DEBUG_APK=app/build/outputs/apk/debug/app-debug.apk
-          ls -lh $DEBUG_APK
-          $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner verify \
-            --print-certs $DEBUG_APK && echo "✅ Debug APK signed OK"
+          ls -lh "$DEBUG_APK"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify \
+            --print-certs "$DEBUG_APK" && echo "✅ Debug APK signed OK"
 
           echo ""
           echo "=== Release APK ==="
           RELEASE_APK=app/build/outputs/apk/release/app-release.apk
           if [ -f "$RELEASE_APK" ]; then
-            ls -lh $RELEASE_APK
-            $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner verify \
-              --print-certs $RELEASE_APK && echo "✅ Release APK signed OK"
+            ls -lh "$RELEASE_APK"
+            "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify \
+              --print-certs "$RELEASE_APK" && echo "✅ Release APK signed OK"
           else
-            echo "Release APK: app-release-unsigned.apk (no signing config)"
+            echo "⚠️  Release APK not found at expected path"
+            find app/build/outputs/apk -name "*.apk"
           fi
 
       # ── 9. Upload Debug APK ───────────────────────────────────────────────────
@@ -110,15 +108,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: "NoteApp-release-${{ github.run_number }}"
-          # Gradle output là app-release.apk khi có signingConfig
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: warn
           retention-days: 30
 
       # ── 11. Summary ───────────────────────────────────────────────────────────
       - name: Build Summary
+        if: always()
         run: |
-          echo "## 📦 Build #${{ github.run_number }} thành công!" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 Build #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Cách cài APK lên Android:" >> $GITHUB_STEP_SUMMARY
           echo "1. Vào tab **Actions** → click vào run này" >> $GITHUB_STEP_SUMMARY
@@ -145,23 +143,23 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
-      - name: Setup Gradle Wrapper
-        run: |
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version=8.4 --distribution-type=bin
-          fi
-          chmod +x gradlew
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      # Giải mã production keystore từ secret
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      # Giải mã production keystore từ secret (tạo bằng: base64 -i keystore.jks)
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d \
             > "${{ github.workspace }}/ci-keystore.jks"
 
       - name: Build Production APK
-        run: ./gradlew assembleRelease --no-daemon
+        run: gradle assembleRelease --no-daemon
         env:
           KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS:     ${{ secrets.KEY_ALIAS }}

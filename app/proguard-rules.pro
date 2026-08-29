@@ -1,3 +1,2 @@
--keep class com.noteapp.data.db.entities.** { *; }
--keep class com.noteapp.utils.ExportModels { *; }
--keepattributes *Annotation*
+# Add project specific ProGuard rules here.
+-keep class com.example.noteapp.data.** { *; }
