@@ -117,6 +117,16 @@ interface NoteDao {
     @Delete
     suspend fun deleteCategory(category: Category)
 
+    /**
+     * Đếm số ghi chú theo từng category, dùng để hiện "Công việc (5)" trên
+     * các chip lọc category. Một query GROUP BY duy nhất thay vì đếm riêng
+     * từng category — hiệu quả hơn nhiều khi có nhiều category.
+     * Ghi chú đã xoá (thùng rác) không được tính vào; ghi chú bí mật vẫn
+     * được tính vào tổng số (chỉ ẩn nội dung, không ẩn sự tồn tại/số lượng).
+     */
+    @Query("SELECT category AS name, COUNT(*) AS count FROM notes WHERE isDeleted = 0 GROUP BY category")
+    fun getCategoryCounts(): Flow<List<CategoryCount>>
+
     // ── Tags (để build danh sách gợi ý) ────────────────────────────────────
     // Loại trừ ghi chú bí mật để tránh lộ tag của note khoá qua danh sách gợi ý.
     @Query("SELECT tags FROM notes WHERE tags != '' AND isDeleted = 0 AND isLocked = 0")

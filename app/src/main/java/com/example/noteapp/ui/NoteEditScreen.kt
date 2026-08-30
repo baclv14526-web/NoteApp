@@ -91,6 +91,7 @@ fun NoteEditScreen(
 ) {
     val context = LocalContext.current
     val categories by viewModel.categories.collectAsState()
+    val categoryCounts by viewModel.categoryCounts.collectAsState()
 
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
@@ -404,7 +405,7 @@ fun NoteEditScreen(
                     FilterChip(
                         selected = category == cat.name,
                         onClick = { category = cat.name },
-                        label = { Text(cat.name) }
+                        label = { Text("${cat.name} (${categoryCounts[cat.name] ?: 0})") }
                     )
                 }
             }

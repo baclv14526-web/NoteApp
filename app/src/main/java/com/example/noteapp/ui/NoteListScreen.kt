@@ -65,6 +65,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
+import com.example.noteapp.data.ALL_CATEGORIES
 import com.example.noteapp.data.Note
 import com.example.noteapp.data.SortOption
 
@@ -83,6 +84,7 @@ fun NoteListScreen(
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val categoryCounts by viewModel.categoryCounts.collectAsState()
     val noteCount by viewModel.noteCount.collectAsState()
     val trashCount by viewModel.trashCount.collectAsState()
     val pagedNotes: LazyPagingItems<Note> = viewModel.notesPaged.collectAsLazyPagingItems()
@@ -168,14 +170,14 @@ fun NoteListScreen(
                     FilterChip(
                         selected = selectedCategory == ALL_CATEGORIES,
                         onClick = { viewModel.onCategorySelected(ALL_CATEGORIES) },
-                        label = { Text(ALL_CATEGORIES) }
+                        label = { Text("$ALL_CATEGORIES (${categoryCounts[ALL_CATEGORIES] ?: 0})") }
                     )
                 }
                 items(categories) { cat ->
                     FilterChip(
                         selected = selectedCategory == cat.name,
                         onClick = { viewModel.onCategorySelected(cat.name) },
-                        label = { Text(cat.name) }
+                        label = { Text("${cat.name} (${categoryCounts[cat.name] ?: 0})") }
                     )
                 }
             }

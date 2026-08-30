@@ -6,6 +6,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import com.example.noteapp.widget.WidgetUpdater
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * [applicationContext] chỉ dùng để gọi WidgetUpdater.refresh() sau các thao
@@ -33,6 +34,18 @@ class NoteRepository(private val dao: NoteDao, private val applicationContext: C
 
     val noteCount: Flow<Int> = dao.countAll()
     val categories: Flow<List<Category>> = dao.getCategories()
+
+    /**
+     * Map "tên category" -> "số ghi chú", kèm sẵn key ALL_CATEGORIES ("Tất cả")
+     * là tổng toàn bộ ghi chú chưa xoá — dùng để hiện "Công việc (5)" trên chip.
+     * Category chưa có ghi chú nào sẽ không xuất hiện trong map (UI tự hiểu
+     * là 0 khi không tìm thấy key, xem NoteListScreen/NoteEditScreen).
+     */
+    val categoryCounts: Flow<Map<String, Int>> = dao.getCategoryCounts().map { list ->
+        val byCategory = list.associate { it.name to it.count }
+        val total = byCategory.values.sum()
+        byCategory + (ALL_CATEGORIES to total)
+    }
 
     suspend fun getById(id: Long) = dao.getById(id)
 

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import com.example.noteapp.data.ALL_CATEGORIES
 import com.example.noteapp.data.Category
 import com.example.noteapp.data.Note
 import com.example.noteapp.data.NoteRepository
@@ -17,8 +18,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-const val ALL_CATEGORIES = "Tất cả"
 
 class NoteViewModel(private val repository: NoteRepository) : ViewModel() {
 
@@ -42,6 +41,10 @@ class NoteViewModel(private val repository: NoteRepository) : ViewModel() {
 
     val categories: StateFlow<List<Category>> = repository.categories
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** "Tên category" -> "số ghi chú", đã kèm sẵn tổng cho ALL_CATEGORIES. */
+    val categoryCounts: StateFlow<Map<String, Int>> = repository.categoryCounts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val noteCount: StateFlow<Int> = repository.noteCount
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun CategoryScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
     val categories by viewModel.categories.collectAsState()
+    val categoryCounts by viewModel.categoryCounts.collectAsState()
     var newCategory by remember { mutableStateOf("") }
 
     Scaffold(
@@ -75,8 +76,10 @@ fun CategoryScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
 
             LazyColumn {
                 items(categories) { cat ->
+                    val count = categoryCounts[cat.name] ?: 0
                     ListItem(
                         headlineContent = { Text(cat.name) },
+                        supportingContent = { Text(if (count == 0) "Chưa có ghi chú" else "$count ghi chú") },
                         trailingContent = {
                             IconButton(onClick = { viewModel.deleteCategory(cat) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Xoá category")

@@ -7,7 +7,7 @@
 - **Ảnh nền tuỳ chỉnh** (.png/.jpg/.jpeg) thay thế màu nền.
 - **Giao diện Material 3**, hỗ trợ Dynamic Color (Android 12+).
 - **Tìm kiếm** theo tên, nội dung và tag cùng lúc, realtime.
-- **Category**: lọc bằng chip trên màn hình danh sách, quản lý (thêm/xoá) ở màn hình riêng.
+- **Category**: lọc bằng chip trên màn hình danh sách, quản lý (thêm/xoá) ở màn hình riêng. Mỗi chip hiện kèm số lượng ghi chú, ví dụ "Tất cả (10)", "Công việc (5)" — cập nhật tự động khi thêm/xoá/đổi category của ghi chú.
 - **Tag**: nhập tự do, phân tách bởi dấu phẩy.
 - **Phân trang thông minh (Paging3 + Room)**: khi > 100 ghi chú, danh sách chỉ tải từng trang 20 item.
 - **Export/Import**: xuất toàn bộ ghi chú ra `.txt` (dễ đọc), `.pdf` (để in/lưu trữ), hoặc `.json` (backup đầy đủ) và chia sẻ qua Intent (Zalo, Gmail, Drive...). Import lại từ file `.json` (đầy đủ dữ liệu) hoặc `.txt` (đã xuất từ chính app, hoặc file .txt tự viết — sẽ được nhập thành 1 ghi chú). File `.pdf` không hỗ trợ import lại.
