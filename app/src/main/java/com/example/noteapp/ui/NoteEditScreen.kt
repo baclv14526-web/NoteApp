@@ -68,6 +68,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.noteapp.data.Note
@@ -325,6 +326,9 @@ fun NoteEditScreen(
     ) { padding ->
         val previewBg = runCatching { Color(android.graphics.Color.parseColor(bgColorHex)) }.getOrDefault(Color.White)
         val previewText = runCatching { Color(android.graphics.Color.parseColor(textColorHex)) }.getOrDefault(Color.Black)
+        val onImage = bgImageUri != null
+        val inputTextColor = if (onImage) Color.White else previewText
+        val placeholderColor = inputTextColor.copy(alpha = 0.5f)
 
         Column(
             modifier = Modifier
@@ -332,47 +336,103 @@ fun NoteEditScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // ── Vùng xem trước với nền màu / nền ảnh ────────────────────────
+            // ── Vùng tiêu đề + nội dung dùng chung 1 nền màu/ảnh ───────────
+            // Toàn bộ Box co giãn theo nội dung người dùng nhập — không cố định
+            // chiều cao — để ảnh/màu nền bao phủ cả tiêu đề lẫn nội dung.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (bgImageUri == null) previewBg else Color.LightGray)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (!onImage) previewBg else Color.DarkGray)
             ) {
-                if (bgImageUri != null) {
+                // Ảnh nền (nếu có) trải full, ContentScale.Crop giữ tỉ lệ
+                if (onImage) {
                     AsyncImage(
                         model = bgImageUri,
                         contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.matchParentSize(),
                         contentScale = ContentScale.Crop
                     )
-                    Box(Modifier.fillMaxWidth().height(180.dp).background(Color.Black.copy(alpha = 0.2f)))
+                    // Gradient overlay tối nhẹ từ trên xuống để chữ dễ đọc
+                    Box(
+                        Modifier.matchParentSize().background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(Color.Black.copy(0.15f), Color.Black.copy(0.40f))
+                            )
+                        )
+                    )
                 }
-                Column(Modifier.padding(16.dp)) {
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    // ── Tiêu đề ─────────────────────────────────────────────
                     TextField(
                         value = title,
                         onValueChange = { title = it },
-                        placeholder = { Text("Tiêu đề", color = (if (bgImageUri != null) Color.White else previewText).copy(alpha = 0.6f)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(
+                                "Tiêu đề",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = placeholderColor
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = inputTextColor
+                        ),
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = Color.Transparent,
                             focusedContainerColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                             focusedIndicatorColor = Color.Transparent,
-                            focusedTextColor = if (bgImageUri != null) Color.White else previewText,
-                            unfocusedTextColor = if (bgImageUri != null) Color.White else previewText
+                            cursorColor = inputTextColor,
+                            focusedTextColor = inputTextColor,
+                            unfocusedTextColor = inputTextColor
+                        )
+                    )
+
+                    // Đường kẻ phân cách mảnh giữa tiêu đề và nội dung
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .height(1.dp)
+                            .background(inputTextColor.copy(alpha = 0.18f))
+                    )
+
+                    // ── Nội dung ─────────────────────────────────────────────
+                    TextField(
+                        value = content,
+                        onValueChange = { content = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 160.dp),
+                        placeholder = {
+                            Text(
+                                "Nội dung ghi chú...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = placeholderColor
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = inputTextColor
+                        ),
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            cursorColor = inputTextColor,
+                            focusedTextColor = inputTextColor,
+                            unfocusedTextColor = inputTextColor
                         )
                     )
                 }
             }
-
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = content,
-                onValueChange = { content = it },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                placeholder = { Text("Nội dung ghi chú...") }
-            )
 
             Spacer(Modifier.height(16.dp))
             Text("Màu nền", style = MaterialTheme.typography.titleMedium)
