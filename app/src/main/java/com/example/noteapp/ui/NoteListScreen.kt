@@ -433,103 +433,126 @@ private fun NoteCard(note: Note, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 130.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(if (!onImage) bgColor else Color.Transparent)
+                .background(if (!onImage) bgColor else Color.Black)
         ) {
-            // ── Ảnh nền ─────────────────────────────────────────────────
             if (onImage) {
+                // FillWidth: ảnh trải full chiều ngang, chiều cao tự nhiên theo
+                // tỉ lệ gốc của ảnh — không bị crop/co giãn biến dạng.
+                // Bố cục: ảnh ở trên, text overlay chồng lên phía dưới.
                 AsyncImage(
                     model = note.bgImageUri,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.FillWidth
                 )
-                // Gradient overlay cho chữ dễ đọc
+                // Gradient tối từ dưới lên giúp chữ đọc được trên ảnh sáng
                 Box(
-                    Modifier.fillMaxSize().background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            colors = listOf(Color.Black.copy(0.05f), Color.Black.copy(0.45f))
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.55f to Color.Black.copy(0.20f),
+                                1f to Color.Black.copy(0.65f)
+                            )
                         )
-                    )
                 )
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // ── Badge icons hàng trên ────────────────────────────────
-                if (note.isPinned || note.reminderAt != null || note.isLocked) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (note.isPinned) StatusIcon(Icons.Default.PushPin, "Ghim", onImage, textColor)
-                        if (note.reminderAt != null) StatusIcon(Icons.Default.Alarm, "Nhắc nhở", onImage, textColor)
-                        if (note.isLocked) StatusIcon(Icons.Default.Lock, "Khoá", onImage, textColor)
-                    }
+            // Nội dung text chồng lên ảnh (nếu có), hoặc hiện trên màu nền thuần
+            if (onImage) {
+                // Khi có ảnh: Column neo ở cuối Box (Alignment.BottomStart)
+                // nhờ dùng align() đúng trong BoxScope
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomStart)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    NoteCardContent(note = note, onImage = true, textColor = Color.White)
                 }
-
-                // ── Tiêu đề: tối đa 2 dòng, xuống dòng tự nhiên ─────────
-                Text(
-                    text = if (note.isLocked) "Ghi chú bí mật"
-                           else note.title.ifBlank { "(Không tiêu đề)" },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (onImage) Color.White else textColor,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 20.sp
-                )
-
-                // ── Nội dung preview ─────────────────────────────────────
-                if (note.isLocked) {
-                    Text(
-                        "Chạm để nhập mật khẩu",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = (if (onImage) Color.White else textColor).copy(alpha = 0.65f),
-                        maxLines = 1
-                    )
-                } else if (note.content.isNotBlank()) {
-                    Text(
-                        note.content,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = (if (onImage) Color.White else textColor).copy(alpha = 0.80f),
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 18.sp
-                    )
-                }
-
-                // ── Tags ─────────────────────────────────────────────────
-                if (!note.isLocked && note.tagList.isNotEmpty()) {
-                    Text(
-                        note.tagList.take(3).joinToString(" ") { "#$it" },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = (if (onImage) Color.White else textColor).copy(alpha = 0.65f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // ── Category chip nhỏ ────────────────────────────────────
-                if (!note.isLocked) {
-                    Spacer(Modifier.height(2.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = (if (onImage) Color.White else textColor).copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            note.category,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (onImage) Color.White else textColor,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+            } else {
+                // Khi dùng màu nền thuần: Column bình thường, có chiều cao tối thiểu
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 130.dp)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    NoteCardContent(note = note, onImage = false, textColor = textColor)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NoteCardContent(note: Note, onImage: Boolean, textColor: Color) {
+    val textOnBg = if (onImage) Color.White else textColor
+
+    if (note.isPinned || note.reminderAt != null || note.isLocked) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (note.isPinned) StatusIcon(Icons.Default.PushPin, "Ghim", onImage, textColor)
+            if (note.reminderAt != null) StatusIcon(Icons.Default.Alarm, "Nhắc nhở", onImage, textColor)
+            if (note.isLocked) StatusIcon(Icons.Default.Lock, "Khoá", onImage, textColor)
+        }
+    }
+
+    Text(
+        text = if (note.isLocked) "Ghi chú bí mật" else note.title.ifBlank { "(Không tiêu đề)" },
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = textOnBg,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        lineHeight = 20.sp
+    )
+
+    if (note.isLocked) {
+        Text(
+            "Chạm để nhập mật khẩu",
+            style = MaterialTheme.typography.bodySmall,
+            color = textOnBg.copy(alpha = 0.65f),
+            maxLines = 1
+        )
+    } else if (note.content.isNotBlank()) {
+        Text(
+            note.content,
+            style = MaterialTheme.typography.bodySmall,
+            color = textOnBg.copy(alpha = 0.80f),
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 18.sp
+        )
+    }
+
+    if (!note.isLocked && note.tagList.isNotEmpty()) {
+        Text(
+            note.tagList.take(3).joinToString(" ") { "#$it" },
+            style = MaterialTheme.typography.labelSmall,
+            color = textOnBg.copy(alpha = 0.65f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+
+    if (!note.isLocked) {
+        Spacer(Modifier.height(2.dp))
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = textOnBg.copy(alpha = 0.15f)
+        ) {
+            Text(
+                note.category,
+                style = MaterialTheme.typography.labelSmall,
+                color = textOnBg,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
