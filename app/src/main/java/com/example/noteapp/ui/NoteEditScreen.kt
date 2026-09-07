@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,11 +43,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -224,16 +225,81 @@ fun NoteEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (noteId == null) "Ghi chú mới" else "Chỉnh sửa ghi chú") },
+                title = {},        // Không cần title — context đã rõ từ màn trước
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
                 actions = {
+                    // Chỉ 1 action chính: Lưu — rõ ràng, không bị chật
+                    val effectivePinned = if (isLocked) false else isPinned
+                    val effectiveReminder = if (isLocked) null else reminderAt
+
+                    TextButton(
+                        onClick = {
+                            val note = (existingNote ?: Note(title = "", content = "")).copy(
+                                title = title,
+                                content = content,
+                                bgColorHex = bgColorHex,
+                                textColorHex = textColorHex,
+                                bgImageUri = bgImageUri,
+                                category = category,
+                                tags = tagsText,
+                                isPinned = effectivePinned,
+                                reminderAt = effectiveReminder,
+                                isLocked = isLocked
+                            )
+                            viewModel.saveNote(note) { savedId ->
+                                if (effectiveReminder != null) {
+                                    val ok = ReminderScheduler.schedule(
+                                        context = context,
+                                        noteId = savedId,
+                                        title = title.ifBlank { "Nhắc nhở ghi chú" },
+                                        content = content,
+                                        triggerAtMillis = effectiveReminder
+                                    )
+                                    if (!ok) {
+                                        Toast.makeText(
+                                            context,
+                                            "Không thể đặt nhắc nhở — vui lòng cấp quyền báo thức chính xác trong Cài đặt",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                } else {
+                                    ReminderScheduler.cancel(context, savedId)
+                                }
+                                onBack()
+                            }
+                        }
+                    ) {
+                        Text(
+                            "Lưu",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            // ── Bottom Action Bar — Lock / Pin / Delete ─────────────────────
+            // Tách các action phụ xuống đây: thoáng hơn, dễ bấm trên điện thoại,
+            // không bị chen nhau với tiêu đề ghi chú trên TopAppBar.
+            Surface(
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Lock / Unlock
                     IconButton(onClick = {
                         if (!isLocked) {
-                            // Đang mở khoá -> muốn khoá lại: cần PIN đã được đặt trước.
                             if (!PinManager.isPinSet(context)) {
                                 pendingLockAfterPinSetup = true
                                 showSetupPinScreen = true
@@ -242,24 +308,66 @@ fun NoteEditScreen(
                                 Toast.makeText(context, "Ghi chú sẽ được khoá sau khi lưu", Toast.LENGTH_SHORT).show()
                             }
                         } else {
-                            // Đang khoá -> mở khoá: không cần nhập lại PIN vì người
-                            // dùng đã xác thực để vào được màn hình sửa này rồi.
                             isLocked = false
                         }
                     }) {
                         Icon(
                             if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
-                            contentDescription = if (isLocked) "Ghi chú bí mật" else "Khoá ghi chú",
-                            tint = if (isLocked) MaterialTheme.colorScheme.error else LocalContentColor.current
+                            contentDescription = if (isLocked) "Đang khoá" else "Khoá ghi chú",
+                            tint = if (isLocked) MaterialTheme.colorScheme.error
+                                   else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    // Pin / Unpin
                     IconButton(onClick = { isPinned = !isPinned }) {
                         Icon(
                             Icons.Default.PushPin,
-                            contentDescription = "Ghim",
-                            tint = if (isPinned) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            contentDescription = if (isPinned) "Đang ghim" else "Ghim ghi chú",
+                            tint = if (isPinned) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    Spacer(Modifier.weight(1f))
+
+                    // Label trạng thái nếu có
+                    if (isLocked || isPinned) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isPinned) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        "Đã ghim",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                            if (isLocked) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer
+                                ) {
+                                    Text(
+                                        "Đã khoá",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                    }
+
+                    // Delete — chỉ hiện khi đang sửa note đã tồn tại
                     if (existingNote != null) {
                         IconButton(onClick = {
                             existingNote?.let {
@@ -268,60 +376,15 @@ fun NoteEditScreen(
                             }
                             onBack()
                         }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Chuyển vào thùng rác")
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Chuyển vào thùng rác",
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
-                    TextButton(onClick = {
-                        // Phòng thủ 2 lớp: ghi chú bí mật không được vừa khoá vừa
-                        // ghim (widget đã tự loại note khoá ở tầng SQL, nhưng ép
-                        // isPinned = false ở đây để tránh mọi rủi ro rò rỉ khác).
-                        val effectivePinned = if (isLocked) false else isPinned
-                        // Ghi chú bí mật không đặt nhắc nhở — nội dung note sẽ
-                        // hiện ra trong notification, làm mất tác dụng khoá.
-                        val effectiveReminder = if (isLocked) null else reminderAt
-
-                        val note = (existingNote ?: Note(title = "", content = "")).copy(
-                            title = title,
-                            content = content,
-                            bgColorHex = bgColorHex,
-                            textColorHex = textColorHex,
-                            bgImageUri = bgImageUri,
-                            category = category,
-                            tags = tagsText,
-                            isPinned = effectivePinned,
-                            reminderAt = effectiveReminder,
-                            isLocked = isLocked
-                        )
-                        viewModel.saveNote(note) { savedId ->
-                            // Đặt/huỷ alarm SAU KHI lưu xong vì ghi chú mới cần
-                            // id thật do Room sinh ra để làm requestCode cho
-                            // AlarmManager — id = 0 tạm thời lúc chưa lưu sẽ
-                            // đè lẫn alarm của nhau nếu dùng trực tiếp.
-                            // Dùng effectiveReminder (không phải reminderAt) vì
-                            // ghi chú bí mật đã bị ép reminderAt = null lúc lưu.
-                            if (effectiveReminder != null) {
-                                val ok = ReminderScheduler.schedule(
-                                    context = context,
-                                    noteId = savedId,
-                                    title = title.ifBlank { "Nhắc nhở ghi chú" },
-                                    content = content,
-                                    triggerAtMillis = effectiveReminder
-                                )
-                                if (!ok) {
-                                    Toast.makeText(
-                                        context,
-                                        "Không thể đặt nhắc nhở — vui lòng cấp quyền báo thức chính xác trong Cài đặt",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                            } else {
-                                ReminderScheduler.cancel(context, savedId)
-                            }
-                            onBack()
-                        }
-                    }) { Text("Lưu") }
                 }
-            )
+            }
         }
     ) { padding ->
         val previewBg = runCatching { Color(android.graphics.Color.parseColor(bgColorHex)) }.getOrDefault(Color.White)
