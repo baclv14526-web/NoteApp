@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,57 +34,81 @@ object NoteExporter {
     private fun exportsDir(context: Context): File =
         File(context.cacheDir, "exports").apply { mkdirs() }
 
+    // ── Export to OutputStream (dùng với CreateDocument) ───────────────────
+
+    /**
+     * Ghi nội dung export thẳng vào [out] — OutputStream do hệ thống cấp
+     * khi người dùng chọn vị trí lưu qua file picker (ActivityResultContracts
+     * .CreateDocument). Không tạo file tạm trong cache, không cần FileProvider.
+     *
+     * Gọi từ coroutine (Dispatchers.IO) — xem ExportImportScreen.kt.
+     */
+    fun exportToStream(out: OutputStream, notes: List<Note>, format: ExportFormat, context: Context) {
+        when (format) {
+            ExportFormat.TXT -> out.bufferedWriter().use { writeTxt(it, notes) }
+            ExportFormat.JSON -> out.bufferedWriter().use { writeJson(it, notes) }
+            ExportFormat.PDF -> writePdf(out, notes)
+        }
+    }
+
     // ── Export ──────────────────────────────────────────────────────────────
 
     /**
      * Export danh sách ghi chú ra file theo định dạng chỉ định.
      * Trả về Uri (dùng FileProvider) sẵn sàng để chia sẻ qua Intent.
+     * (Giữ lại để dùng khi người dùng muốn chia sẻ thay vì lưu file.)
      */
     fun export(context: Context, notes: List<Note>, format: ExportFormat, baseName: String = "NoteApp"): Uri {
         val timestamp = fileTimestamp.format(Date())
         val file = when (format) {
-            ExportFormat.TXT -> exportTxt(context, notes, "${baseName}_$timestamp.txt")
-            ExportFormat.PDF -> exportPdf(context, notes, "${baseName}_$timestamp.pdf")
-            ExportFormat.JSON -> exportJson(context, notes, "${baseName}_$timestamp.json")
+            ExportFormat.TXT -> {
+                val f = File(exportsDir(context), "${baseName}_$timestamp.txt")
+                f.bufferedWriter().use { writeTxt(it, notes) }
+                f
+            }
+            ExportFormat.PDF -> {
+                val f = File(exportsDir(context), "${baseName}_$timestamp.pdf")
+                FileOutputStream(f).use { writePdf(it, notes) }
+                f
+            }
+            ExportFormat.JSON -> {
+                val f = File(exportsDir(context), "${baseName}_$timestamp.json")
+                f.bufferedWriter().use { writeJson(it, notes) }
+                f
+            }
         }
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 
-    private fun exportTxt(context: Context, notes: List<Note>, fileName: String): File {
-        val file = File(exportsDir(context), fileName)
-        file.bufferedWriter().use { writer ->
-            notes.forEachIndexed { index, note ->
-                writer.appendLine("=".repeat(40))
-                writer.appendLine("Tiêu đề: ${note.title.ifBlank { "(Không tiêu đề)" }}")
-                writer.appendLine("Category: ${note.category}")
-                if (note.tagList.isNotEmpty()) {
-                    writer.appendLine("Tags: ${note.tagList.joinToString(", ") { "#$it" }}")
-                }
-                writer.appendLine("Ngày sửa: ${dateFormat.format(Date(note.updatedAt))}")
-                writer.appendLine("-".repeat(40))
-                writer.appendLine(note.content)
-                writer.appendLine()
-                if (index == notes.lastIndex) writer.appendLine("=".repeat(40))
+    // ── Writer helpers (dùng chung cho cả stream và file) ───────────────────
+
+    private fun writeTxt(writer: java.io.BufferedWriter, notes: List<Note>) {
+        notes.forEachIndexed { index, note ->
+            writer.appendLine("=".repeat(40))
+            writer.appendLine("Tiêu đề: ${note.title.ifBlank { "(Không tiêu đề)" }}")
+            writer.appendLine("Category: ${note.category}")
+            if (note.tagList.isNotEmpty()) {
+                writer.appendLine("Tags: ${note.tagList.joinToString(", ") { "#$it" }}")
             }
+            writer.appendLine("Ngày sửa: ${dateFormat.format(Date(note.updatedAt))}")
+            writer.appendLine("-".repeat(40))
+            writer.appendLine(note.content)
+            writer.appendLine()
+            if (index == notes.lastIndex) writer.appendLine("=".repeat(40))
         }
-        return file
     }
 
-    private fun exportJson(context: Context, notes: List<Note>, fileName: String): File {
-        val file = File(exportsDir(context), fileName)
+    private fun writeJson(writer: java.io.BufferedWriter, notes: List<Note>) {
         val backup = NoteBackup(
             exportedAt = System.currentTimeMillis(),
             noteCount = notes.size,
             notes = notes
         )
-        file.writeText(gson.toJson(backup))
-        return file
+        writer.write(gson.toJson(backup))
     }
 
-    private fun exportPdf(context: Context, notes: List<Note>, fileName: String): File {
-        val file = File(exportsDir(context), fileName)
+    private fun writePdf(out: OutputStream, notes: List<Note>) {
         val document = PdfDocument()
-
         val pageWidth = 595   // A4 @ 72dpi
         val pageHeight = 842
         val margin = 40f
@@ -109,19 +134,13 @@ object NoteExporter {
         fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
             val lines = mutableListOf<String>()
             text.split("\n").forEach { paragraph ->
-                if (paragraph.isEmpty()) {
-                    lines.add("")
-                    return@forEach
-                }
+                if (paragraph.isEmpty()) { lines.add(""); return@forEach }
                 var current = StringBuilder()
                 paragraph.split(" ").forEach { word ->
                     val candidate = if (current.isEmpty()) word else "$current $word"
                     if (paint.measureText(candidate) > maxWidth && current.isNotEmpty()) {
-                        lines.add(current.toString())
-                        current = StringBuilder(word)
-                    } else {
-                        current = StringBuilder(candidate)
-                    }
+                        lines.add(current.toString()); current = StringBuilder(word)
+                    } else current = StringBuilder(candidate)
                 }
                 if (current.isNotEmpty()) lines.add(current.toString())
             }
@@ -130,47 +149,44 @@ object NoteExporter {
 
         notes.forEach { note ->
             if (y > pageHeight - margin - 60) newPage()
-
             canvas.drawText(note.title.ifBlank { "(Không tiêu đề)" }, margin, y, titlePaint)
             y += 18f
-
             val meta = "Category: ${note.category}" +
                 (if (note.tagList.isNotEmpty()) "  •  Tags: ${note.tagList.joinToString(", ") { "#$it" }}" else "") +
                 "  •  ${dateFormat.format(Date(note.updatedAt))}"
             wrapText(meta, metaPaint, maxLineWidth).forEach { line ->
                 if (y > pageHeight - margin) newPage()
-                canvas.drawText(line, margin, y, metaPaint)
-                y += 13f
+                canvas.drawText(line, margin, y, metaPaint); y += 13f
             }
             y += 6f
-
             wrapText(note.content, bodyPaint, maxLineWidth).forEach { line ->
                 if (y > pageHeight - margin) newPage()
-                canvas.drawText(line, margin, y, bodyPaint)
-                y += 16f
+                canvas.drawText(line, margin, y, bodyPaint); y += 16f
             }
             y += 20f
         }
 
         document.finishPage(page)
-        FileOutputStream(file).use { document.writeTo(it) }
+        document.writeTo(out)
         document.close()
+    }
+
+    private fun exportTxt(context: Context, notes: List<Note>, fileName: String): File {
+        val file = File(exportsDir(context), fileName)
+        file.bufferedWriter().use { writeTxt(it, notes) }
         return file
     }
 
-    // ── Share Intent ────────────────────────────────────────────────────────
+    private fun exportJson(context: Context, notes: List<Note>, fileName: String): File {
+        val file = File(exportsDir(context), fileName)
+        file.bufferedWriter().use { writeJson(it, notes) }
+        return file
+    }
 
-    fun shareIntent(context: Context, uri: Uri, format: ExportFormat): Intent {
-        val mimeType = when (format) {
-            ExportFormat.TXT -> "text/plain"
-            ExportFormat.PDF -> "application/pdf"
-            ExportFormat.JSON -> "application/json"
-        }
-        return Intent(Intent.ACTION_SEND).apply {
-            type = mimeType
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+    private fun exportPdf(context: Context, notes: List<Note>, fileName: String): File {
+        val file = File(exportsDir(context), fileName)
+        FileOutputStream(file).use { writePdf(it, notes) }
+        return file
     }
 
     // ── Import ──────────────────────────────────────────────────────────────

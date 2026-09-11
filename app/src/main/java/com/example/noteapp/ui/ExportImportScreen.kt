@@ -11,23 +11,29 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.DataObject
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -38,59 +44,71 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.noteapp.util.NoteExporter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/**
+ * Export dùng ActivityResultContracts.CreateDocument — hệ thống hiện file
+ * picker để người dùng TỰ CHỌN nơi lưu (bộ nhớ trong, thẻ nhớ microSD,
+ * Google Drive...). Không cần quyền WRITE_EXTERNAL_STORAGE.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportImportScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var isExporting by remember { mutableStateOf(false) }
+    val dateStamp = remember { SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date()) }
+
+    var exportingFormat by remember { mutableStateOf<NoteExporter.ExportFormat?>(null) }
     var isImportingJson by remember { mutableStateOf(false) }
     var isImportingTxt by remember { mutableStateOf(false) }
 
-    fun doExport(format: NoteExporter.ExportFormat) {
+    fun writeExport(destUri: Uri, format: NoteExporter.ExportFormat) {
         scope.launch {
-            isExporting = true
+            exportingFormat = format
             try {
-                // Mặc định loại trừ ghi chú bí mật khỏi file export — các định
-                // dạng .txt/.pdf/.json đều không mã hoá, xuất note bí mật ra
-                // sẽ vô hiệu hoá hoàn toàn mục đích của tính năng khoá PIN.
                 val allNotes = viewModel.getAllNotesForExport(excludeLocked = false)
                 val exportableNotes = viewModel.getAllNotesForExport(excludeLocked = true)
                 val lockedCount = allNotes.size - exportableNotes.size
 
                 if (exportableNotes.isEmpty()) {
-                    val message = if (lockedCount > 0) {
-                        "Tất cả ghi chú đều đang bị khoá nên không thể xuất file"
-                    } else {
-                        "Chưa có ghi chú nào để xuất"
-                    }
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                } else {
-                    if (lockedCount > 0) {
-                        Toast.makeText(
-                            context,
-                            "Đã bỏ qua $lockedCount ghi chú bí mật khi xuất file (không mã hoá)",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    val uri = NoteExporter.export(context, exportableNotes, format)
-                    val intent = NoteExporter.shareIntent(context, uri, format)
-                    context.startActivity(android.content.Intent.createChooser(intent, "Chia sẻ file ghi chú"))
+                    Toast.makeText(
+                        context,
+                        if (lockedCount > 0) "Tất cả ghi chú đều đang bị khoá, không thể xuất"
+                        else "Chưa có ghi chú nào để xuất",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@launch
                 }
+
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(destUri)?.use { out ->
+                        NoteExporter.exportToStream(out, exportableNotes, format, context)
+                    } ?: throw Exception("Không mở được file để ghi")
+                }
+
+                val msg = buildString {
+                    append("✓ Đã lưu ${exportableNotes.size} ghi chú")
+                    if (lockedCount > 0) append(" (bỏ qua $lockedCount ghi chú bí mật)")
+                }
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+
             } catch (e: Exception) {
-                Toast.makeText(context, "Lỗi khi xuất file: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Lỗi khi lưu file: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
-                isExporting = false
+                exportingFormat = null
             }
         }
     }
 
-    /** Import chung cho cả .json và .txt — chỉ khác hàm parse được truyền vào. */
     fun doImport(
         uri: Uri,
         setLoading: (Boolean) -> Unit,
@@ -105,7 +123,7 @@ fun ExportImportScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
                     setLoading(false)
                 } else {
                     viewModel.importNotes(notes) { count ->
-                        Toast.makeText(context, "Đã import $count ghi chú", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "✓ Đã nhập $count ghi chú", Toast.LENGTH_LONG).show()
                         setLoading(false)
                     }
                 }
@@ -116,24 +134,32 @@ fun ExportImportScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
         }
     }
 
-    // Chọn file .json từ máy để import lại (backup đầy đủ)
+    // CreateDocument mở file picker, người dùng chọn nơi lưu
+    val saveJsonLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { writeExport(it, NoteExporter.ExportFormat.JSON) } }
+
+    val saveTxtLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri -> uri?.let { writeExport(it, NoteExporter.ExportFormat.TXT) } }
+
+    val savePdfLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri -> uri?.let { writeExport(it, NoteExporter.ExportFormat.PDF) } }
+
     val importJsonPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) {
-            doImport(uri, { isImportingJson = it }) { ctx, u -> NoteExporter.parseJsonBackup(ctx, u) }
-        }
+        uri?.let { doImport(it, { v -> isImportingJson = v }) { ctx, u -> NoteExporter.parseJsonBackup(ctx, u) } }
     }
 
-    // Chọn file .txt từ máy để import lại (theo format app tự xuất ra, hoặc
-    // fallback coi cả file là 1 ghi chú nếu không đúng format)
     val importTxtPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) {
-            doImport(uri, { isImportingTxt = it }) { ctx, u -> NoteExporter.parseTxtBackup(ctx, u) }
-        }
+        uri?.let { doImport(it, { v -> isImportingTxt = v }) { ctx, u -> NoteExporter.parseTxtBackup(ctx, u) } }
     }
+
+    val isExporting = exportingFormat != null
 
     Scaffold(
         topBar = {
@@ -147,56 +173,68 @@ fun ExportImportScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp)) {
-
-            Text("Xuất ghi chú (Export)", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Xuất toàn bộ ghi chú ra file để backup hoặc chia sẻ. Ghi chú bí mật (đã khoá) sẽ không được đưa vào file.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            // ── XUẤT GHI CHÚ ────────────────────────────────────────────────
+            SectionHeader(
+                title = "Xuất ghi chú ra file",
+                subtitle = "Hệ thống sẽ mở cửa sổ chọn vị trí lưu — bạn có thể lưu vào bộ nhớ trong, thẻ nhớ microSD hoặc Google Drive"
             )
             Spacer(Modifier.height(12.dp))
 
-            ExportOptionCard(
+            ExportCard(
                 icon = Icons.Default.DataObject,
-                title = "Xuất file .json",
-                subtitle = "Đầy đủ dữ liệu — dùng để backup và import lại sau này",
+                title = "Lưu file .json",
+                subtitle = "Backup đầy đủ — nhập lại được",
+                badge = "Khuyến nghị",
+                loading = exportingFormat == NoteExporter.ExportFormat.JSON,
                 enabled = !isExporting,
-                onClick = { doExport(NoteExporter.ExportFormat.JSON) }
+                onClick = { saveJsonLauncher.launch("NoteApp_backup_$dateStamp.json") }
             )
             Spacer(Modifier.height(10.dp))
-            ExportOptionCard(
+            ExportCard(
                 icon = Icons.Default.Description,
-                title = "Xuất file .txt",
-                subtitle = "Văn bản thuần, dễ đọc, dễ chia sẻ",
+                title = "Lưu file .txt",
+                subtitle = "Văn bản thuần, mở được trên mọi thiết bị",
+                loading = exportingFormat == NoteExporter.ExportFormat.TXT,
                 enabled = !isExporting,
-                onClick = { doExport(NoteExporter.ExportFormat.TXT) }
+                onClick = { saveTxtLauncher.launch("NoteApp_$dateStamp.txt") }
             )
             Spacer(Modifier.height(10.dp))
-            ExportOptionCard(
+            ExportCard(
                 icon = Icons.Default.PictureAsPdf,
-                title = "Xuất file .pdf",
-                subtitle = "Định dạng để in hoặc lưu trữ trang trọng",
+                title = "Lưu file .pdf",
+                subtitle = "Để in hoặc lưu trữ — không nhập lại được",
+                loading = exportingFormat == NoteExporter.ExportFormat.PDF,
                 enabled = !isExporting,
-                onClick = { doExport(NoteExporter.ExportFormat.PDF) }
+                onClick = { savePdfLauncher.launch("NoteApp_$dateStamp.pdf") }
             )
 
-            if (isExporting) {
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Đang chuẩn bị file...", style = MaterialTheme.typography.bodySmall)
-                }
+            Spacer(Modifier.height(16.dp))
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Text(
+                    "⚠️  Ghi chú bí mật (đã khoá PIN) sẽ không được đưa vào file xuất để bảo vệ dữ liệu riêng tư.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(12.dp)
+                )
             }
 
             Spacer(Modifier.height(28.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(28.dp))
 
-            Text("Nhập ghi chú (Import)", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Nhập lại ghi chú từ file .json hoặc .txt đã xuất trước đó. Ghi chú import sẽ được thêm mới, không ghi đè dữ liệu hiện có.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            // ── NHẬP GHI CHÚ ────────────────────────────────────────────────
+            SectionHeader(
+                title = "Nhập ghi chú từ file",
+                subtitle = "Ghi chú được thêm mới, không ghi đè dữ liệu hiện có"
             )
             Spacer(Modifier.height(12.dp))
 
@@ -205,9 +243,15 @@ fun ExportImportScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isImportingJson && !isImportingTxt
             ) {
-                Icon(Icons.Default.FileUpload, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (isImportingJson) "Đang nhập..." else "Chọn file .json để nhập")
+                if (isImportingJson) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đang nhập...")
+                } else {
+                    Icon(Icons.Default.FileUpload, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Nhập từ file .json")
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -217,33 +261,53 @@ fun ExportImportScreen(viewModel: NoteViewModel, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isImportingJson && !isImportingTxt
             ) {
-                Icon(Icons.Default.FileUpload, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (isImportingTxt) "Đang nhập..." else "Chọn file .txt để nhập")
+                if (isImportingTxt) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đang nhập...")
+                } else {
+                    Icon(Icons.Default.FileUpload, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Nhập từ file .txt")
+                }
             }
 
             Text(
-                "Lưu ý: file .pdf không hỗ trợ nhập lại (PDF không lưu category/tag/màu ở dạng đọc được).",
+                "File .pdf không hỗ trợ nhập lại.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
             )
+            Spacer(Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-private fun ExportOptionCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun SectionHeader(title: String, subtitle: String) {
+    Text(title, style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        subtitle,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun ExportCard(
+    icon: ImageVector,
     title: String,
     subtitle: String,
+    badge: String? = null,
+    loading: Boolean,
     enabled: Boolean,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        enabled = enabled,
+        enabled = enabled && !loading,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
@@ -253,10 +317,40 @@ private fun ExportOptionCard(
         ) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(title, style = MaterialTheme.typography.titleSmall)
+                    if (badge != null) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Text(
+                                badge,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            Icon(Icons.Default.FileDownload, contentDescription = "Xuất file")
+            if (loading) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(
+                    Icons.Default.SaveAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
