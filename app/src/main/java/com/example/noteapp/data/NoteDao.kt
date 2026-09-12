@@ -111,6 +111,10 @@ interface NoteDao {
     @Query("SELECT * FROM categories ORDER BY name ASC")
     fun getCategories(): Flow<List<Category>>
 
+    /** Lấy danh sách tên category đang có — dùng khi import để tránh tạo trùng. */
+    @Query("SELECT name FROM categories")
+    suspend fun getCategoryNames(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCategory(category: Category): Long
 

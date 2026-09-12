@@ -128,9 +128,27 @@ class NoteRepository(private val dao: NoteDao, private val applicationContext: C
         return if (excludeLocked) all.filterNot { it.isLocked } else all
     }
 
-    /** Import danh sách ghi chú, trả về số lượng ghi chú mới được thêm thành công. */
+    /** Import danh sách ghi chú, trả về số lượng ghi chú mới được thêm thành công.
+     *
+     *  Tự động tạo category chưa tồn tại trong bảng categories — đảm bảo chip
+     *  lọc xuất hiện đúng sau khi import, không cần người dùng tạo tay.
+     *  Tags không cần xử lý thêm vì được lưu thẳng trong cột tags của note.
+     */
     suspend fun importNotes(notes: List<Note>): Int {
-        // id = 0 để Room tự sinh id mới, tránh đè lên ghi chú hiện có khi import.
+        // 1. Lấy danh sách category đang có trong DB
+        val existingCategories = dao.getCategoryNames().toMutableSet()
+
+        // 2. Tìm các category trong file import chưa tồn tại → tạo mới
+        notes.map { it.category }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .filter { it !in existingCategories }
+            .forEach { newCat ->
+                dao.insertCategory(Category(name = newCat, colorHex = "#90CAF9"))
+                existingCategories.add(newCat)
+            }
+
+        // 3. Insert các ghi chú, id = 0 để Room tự sinh id mới
         val toInsert = notes.map { it.copy(id = 0) }
         val result = dao.insertAll(toInsert).count { it != -1L }
         if (result > 0) WidgetUpdater.refresh(applicationContext)
