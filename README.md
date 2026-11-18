@@ -16,6 +16,7 @@
 - **Nhắc nhở (Reminder)**: đặt ngày + giờ cho từng ghi chú, dùng `AlarmManager` để bắn thông báo đúng thời điểm (kể cả khi máy đang ở chế độ Doze). Tap vào thông báo mở thẳng ghi chú đó. Tự động đặt lại toàn bộ nhắc nhở sau khi khởi động lại máy (vì `AlarmManager` bị hệ thống huỷ mỗi lần reboot).
 - **App Widget (Home Screen)**: hiển thị danh sách ghi chú đã ghim ngay trên màn hình chính điện thoại, dùng Glance (Compose cho App Widget). Tap vào 1 ghi chú trong widget mở thẳng app tới ghi chú đó. Widget tự làm mới mỗi khi ghim/bỏ ghim/sửa/xoá ghi chú.
 - **Ghi chú bí mật (khoá PIN 6 số)**: khoá ghi chú riêng tư bằng mật khẩu 6 số dùng chung cho cả app. Ghi chú đã khoá ẩn hoàn toàn title/content ở danh sách chính, thùng rác, không lộ qua tìm kiếm/gợi ý tag, tự động bị loại khỏi Widget và file export. Có câu hỏi bảo mật để đặt lại mật khẩu nếu quên. PIN được lưu dạng hash (SHA-256 + salt) trong `EncryptedSharedPreferences`, mã hoá bằng Android Keystore — không lưu plaintext.
+- **Tự động lưu khi quay lại**: bấm Back (nút trên thanh hoặc nút/cử chỉ back của điện thoại) khi ghi chú có sửa đổi sẽ tự lưu rồi mới thoát; không sửa gì thì thoát luôn, và ghi chú mới còn trống không bị tạo ra.
 - **Thông tin ghi chú**: mỗi ghi chú hiển thị ngày giờ tạo, ngày giờ sửa lần cuối, và số lần đã sửa (tăng tự động mỗi khi lưu lại ghi chú đã tồn tại).
 
 ## Mở project

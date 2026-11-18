@@ -2,6 +2,7 @@ package com.example.noteapp.ui
 
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -29,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.AlarmOff
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
@@ -70,6 +72,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.noteapp.data.Note
@@ -208,6 +211,88 @@ fun NoteEditScreen(
         return
     }
 
+    // ── Lưu ghi chú + tự động lưu khi bấm Back ─────────────────────────────
+    // isSaving chặn lưu 2 lần khi người dùng bấm back/Lưu liên tiếp trong lúc
+    // đang ghi vào DB.
+    var isSaving by remember { mutableStateOf(false) }
+
+    // Có thay đổi so với bản đã mở hay chưa:
+    //  - Ghi chú đã tồn tại: so từng trường với bản gốc trong DB.
+    //  - Ghi chú mới: chỉ coi là "có gì để lưu" khi đã gõ tiêu đề hoặc nội dung,
+    //    tránh tạo ra ghi chú rỗng khi người dùng mở rồi thoát ngay.
+    val hasChanges = existingNote.let { orig ->
+        if (orig == null) {
+            title.isNotBlank() || content.isNotBlank()
+        } else {
+            title != orig.title ||
+                content != orig.content ||
+                bgColorHex != orig.bgColorHex ||
+                textColorHex != orig.textColorHex ||
+                bgImageUri != orig.bgImageUri ||
+                category != orig.category ||
+                tagsText != orig.tags ||
+                isPinned != orig.isPinned ||
+                reminderAt != orig.reminderAt ||
+                isLocked != orig.isLocked
+        }
+    }
+
+    fun saveNoteAndThen(autoSaved: Boolean) {
+        if (isSaving) return
+        isSaving = true
+
+        // Phòng thủ: ghi chú bí mật không được ghim và không đặt nhắc nhở
+        // (nội dung sẽ lộ ra Widget / notification).
+        val effectivePinned = if (isLocked) false else isPinned
+        val effectiveReminder = if (isLocked) null else reminderAt
+
+        val note = (existingNote ?: Note(title = "", content = "")).copy(
+            title = title,
+            content = content,
+            bgColorHex = bgColorHex,
+            textColorHex = textColorHex,
+            bgImageUri = bgImageUri,
+            category = category,
+            tags = tagsText,
+            isPinned = effectivePinned,
+            reminderAt = effectiveReminder,
+            isLocked = isLocked
+        )
+        viewModel.saveNote(note) { savedId ->
+            // Đặt/huỷ alarm SAU KHI lưu xong vì ghi chú mới cần id thật làm requestCode.
+            if (effectiveReminder != null) {
+                val ok = ReminderScheduler.schedule(
+                    context = context,
+                    noteId = savedId,
+                    title = title.ifBlank { "Nhắc nhở ghi chú" },
+                    content = content,
+                    triggerAtMillis = effectiveReminder
+                )
+                if (!ok) {
+                    Toast.makeText(
+                        context,
+                        "Không thể đặt nhắc nhở — vui lòng cấp quyền báo thức chính xác trong Cài đặt",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } else {
+                ReminderScheduler.cancel(context, savedId)
+            }
+            if (autoSaved) {
+                Toast.makeText(context, "Đã tự động lưu", Toast.LENGTH_SHORT).show()
+            }
+            onBack()
+        }
+    }
+
+    // Back (nút trên thanh hoặc nút/cử chỉ back của hệ thống): có sửa đổi thì
+    // tự lưu rồi mới thoát, không có gì thay đổi thì thoát luôn.
+    fun handleBack() {
+        if (hasChanges) saveNoteAndThen(autoSaved = true) else onBack()
+    }
+
+    BackHandler(enabled = true) { handleBack() }
+
     // Chọn ảnh .png / .jpg / .jpeg từ thư viện để làm nền ghi chú
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -225,53 +310,25 @@ fun NoteEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {},        // Không cần title — context đã rõ từ màn trước
+                title = {
+                    Text(
+                        if (noteId == null) "Ghi chú mới" else "Sửa ghi chú",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { handleBack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
                 actions = {
                     // Chỉ 1 action chính: Lưu — rõ ràng, không bị chật
-                    val effectivePinned = if (isLocked) false else isPinned
-                    val effectiveReminder = if (isLocked) null else reminderAt
-
                     TextButton(
-                        onClick = {
-                            val note = (existingNote ?: Note(title = "", content = "")).copy(
-                                title = title,
-                                content = content,
-                                bgColorHex = bgColorHex,
-                                textColorHex = textColorHex,
-                                bgImageUri = bgImageUri,
-                                category = category,
-                                tags = tagsText,
-                                isPinned = effectivePinned,
-                                reminderAt = effectiveReminder,
-                                isLocked = isLocked
-                            )
-                            viewModel.saveNote(note) { savedId ->
-                                if (effectiveReminder != null) {
-                                    val ok = ReminderScheduler.schedule(
-                                        context = context,
-                                        noteId = savedId,
-                                        title = title.ifBlank { "Nhắc nhở ghi chú" },
-                                        content = content,
-                                        triggerAtMillis = effectiveReminder
-                                    )
-                                    if (!ok) {
-                                        Toast.makeText(
-                                            context,
-                                            "Không thể đặt nhắc nhở — vui lòng cấp quyền báo thức chính xác trong Cài đặt",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                } else {
-                                    ReminderScheduler.cancel(context, savedId)
-                                }
-                                onBack()
-                            }
-                        }
+                        onClick = { saveNoteAndThen(autoSaved = false) }
                     ) {
                         Text(
                             "Lưu",
@@ -623,39 +680,77 @@ fun NoteEditScreen(
 
 @Composable
 private fun NoteMetadataCard(note: Note) {
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy 'lúc' HH:mm", Locale("vi")) }
+    val dayFormat = remember { SimpleDateFormat("dd/MM/yy", Locale("vi")) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale("vi")) }
+    val created = java.util.Date(note.createdAt)
+    val updated = java.util.Date(note.updatedAt)
 
-    Card(
+    // 3 ô nhỏ cạnh nhau: ngày giờ tách 2 dòng có chủ đích nên không bao giờ
+    // bị xuống dòng ngẫu nhiên như khi để cả "dd/MM/yyyy lúc HH:mm" trong 1 hàng.
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            MetadataRow(label = "Ngày tạo", value = dateFormat.format(java.util.Date(note.createdAt)))
-            Spacer(Modifier.height(6.dp))
-            MetadataRow(label = "Sửa lần cuối", value = dateFormat.format(java.util.Date(note.updatedAt)))
-            Spacer(Modifier.height(6.dp))
-            MetadataRow(
-                label = "Số lần đã sửa",
-                value = if (note.editCount == 0) "Chưa sửa lần nào" else "${note.editCount} lần"
-            )
-        }
+        MetaStat(
+            label = "Ngày tạo",
+            primary = dayFormat.format(created),
+            secondary = timeFormat.format(created),
+            modifier = Modifier.weight(1f)
+        )
+        MetaStat(
+            label = "Sửa gần nhất",
+            primary = dayFormat.format(updated),
+            secondary = timeFormat.format(updated),
+            modifier = Modifier.weight(1f)
+        )
+        MetaStat(
+            label = "Số lần sửa",
+            primary = note.editCount.toString(),
+            secondary = if (note.editCount == 0) "chưa sửa" else "lần",
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
 @Composable
-private fun MetadataRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+private fun MetaStat(label: String, primary: String, secondary: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                primary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                secondary,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -665,14 +760,22 @@ private fun ReminderCard(
     onSetReminder: () -> Unit,
     onClearReminder: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("EEEE, dd/MM/yyyy 'lúc' HH:mm", Locale("vi")) }
+    val dayFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale("vi")) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale("vi")) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    // Cả thẻ chạm được để đặt/đổi giờ — bỏ nút "Đổi giờ" chữ dài chen vào hàng,
+    // chỉ còn 1 nút ✕ nhỏ để xoá nhắc nhở.
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSetReminder),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -683,15 +786,42 @@ private fun ReminderCard(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 if (reminderAt != null) {
-                    Text(dateFormat.format(java.util.Date(reminderAt)), style = MaterialTheme.typography.bodyMedium)
+                    val date = java.util.Date(reminderAt)
+                    Text(
+                        "${dayFormat.format(date)} · ${timeFormat.format(date)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "Chạm để đổi giờ",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 } else {
-                    Text("Chưa đặt nhắc nhở", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Chưa đặt nhắc nhở",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "Chạm để đặt ngày giờ",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 }
             }
             if (reminderAt != null) {
-                TextButton(onClick = onClearReminder) { Text("Bỏ") }
+                IconButton(onClick = onClearReminder) {
+                    Icon(Icons.Default.Close, contentDescription = "Bỏ nhắc nhở")
+                }
             }
-            TextButton(onClick = onSetReminder) { Text(if (reminderAt != null) "Đổi giờ" else "Đặt giờ") }
         }
     }
 }
