@@ -22,9 +22,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.NoteApp">
 
+        <!-- adjustResize: khi bàn phím mở, cửa sổ co lại thay vì bị "đẩy" (adjustPan).
+             Nhờ vậy vùng cuộn của màn sửa ghi chú có kích thước thật, và Compose
+             tự cuộn để con trỏ luôn nằm phía trên bàn phím, không bị che. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.NoteApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
