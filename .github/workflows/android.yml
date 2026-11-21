@@ -24,11 +24,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # ── 3. Cài Android SDK / command-line tools ──────────────────────────────
-      # actions/setup-java không tự cài Android SDK, nên cần bước riêng để có
-      # $ANDROID_HOME và apksigner dùng ở bước Verify APK.
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # ── 3. Android SDK ───────────────────────────────────────────────────────
+      # Runner ubuntu-latest ĐÃ CÓ SẴN Android SDK ($ANDROID_HOME, build-tools,
+      # apksigner). Không dùng action setup-android@v3 nữa vì nó chạy
+      # `sdkmanager tools` và lỗi "Failed to find package 'tools'" (gói này đã bị
+      # Google gỡ khỏi kho SDK). Chỉ cần chấp nhận license bằng sdkmanager có sẵn.
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       # ── 4. Cài Gradle 8.7 (KHÔNG dùng gradlew có sẵn trong repo) ─────────────
       # Đây là điểm mấu chốt để tránh lỗi "Minimum supported Gradle version":
@@ -144,8 +146,8 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v4

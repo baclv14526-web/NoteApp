@@ -29,7 +29,7 @@
 ## CI/CD — GitHub Actions
 File `.github/workflows/android.yml`:
 - **Không dùng `./gradlew`** trong repo. Thay vào đó dùng action chính thức `gradle/actions/setup-gradle@v4` để cài **Gradle 8.7** thẳng trên runner, sau đó gọi lệnh `gradle` trực tiếp. Cách này loại bỏ hoàn toàn nguyên nhân phổ biến nhất gây lỗi `Minimum supported Gradle version is 8.6` (do file `gradle-wrapper.properties` cũ/bị lệch version).
-- Dùng `android-actions/setup-android@v3` để có `$ANDROID_HOME` và `apksigner`.
+- Dùng Android SDK có sẵn trên runner `ubuntu-latest` (`$ANDROID_HOME`, `apksigner`), chỉ chấp nhận license bằng `sdkmanager` có sẵn. Không dùng `android-actions/setup-android@v3` vì nó lỗi `Failed to find package 'tools'`.
 - Job `build`: tạo keystore CI, build cả debug và release APK, ký tự động, verify bằng `apksigner`, upload artifact.
 - Job `release-prod`: chỉ chạy khi push tag `vX.Y.Z` và đã cấu hình secrets thật (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) + biến `vars.HAS_KEYSTORE=true`.
 
