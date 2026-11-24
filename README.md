@@ -17,6 +17,7 @@
 - **App Widget (Home Screen)**: hiển thị danh sách ghi chú đã ghim ngay trên màn hình chính điện thoại, dùng Glance (Compose cho App Widget). Tap vào 1 ghi chú trong widget mở thẳng app tới ghi chú đó. Widget tự làm mới mỗi khi ghim/bỏ ghim/sửa/xoá ghi chú.
 - **Ghi chú bí mật (khoá PIN 6 số)**: khoá ghi chú riêng tư bằng mật khẩu 6 số dùng chung cho cả app. Ghi chú đã khoá ẩn hoàn toàn title/content ở danh sách chính, thùng rác, không lộ qua tìm kiếm/gợi ý tag, tự động bị loại khỏi Widget và file export. Có câu hỏi bảo mật để đặt lại mật khẩu nếu quên. PIN được lưu dạng hash (SHA-256 + salt) trong `EncryptedSharedPreferences`, mã hoá bằng Android Keystore — không lưu plaintext.
 - **Tự động lưu khi quay lại**: bấm Back (nút trên thanh hoặc nút/cử chỉ back của điện thoại) khi ghi chú có sửa đổi sẽ tự lưu rồi mới thoát; không sửa gì thì thoát luôn, và ghi chú mới còn trống không bị tạo ra.
+- **Mở khoá bằng vân tay**: ngoài mã PIN 6 số, ghi chú bí mật có thể mở bằng vân tay (BiometricPrompt). Bật trong Bảo mật ghi chú → công tắc "Mở khoá bằng vân tay" (cần quét vân tay 1 lần để xác nhận). Khi mở ghi chú khoá, hộp thoại vân tay tự hiện; bấm "Dùng mã PIN" để nhập PIN như cũ. Đổi mật khẩu và đặt lại qua câu hỏi bảo mật vẫn chỉ dùng PIN. Lưu ý: mọi vân tay đã đăng ký trên điện thoại đều mở được ghi chú.
 - **Thông tin ghi chú**: mỗi ghi chú hiển thị ngày giờ tạo, ngày giờ sửa lần cuối, và số lần đã sửa (tăng tự động mỗi khi lưu lại ghi chú đã tồn tại).
 
 ## Mở project

@@ -105,6 +105,14 @@ dependencies {
     // Lưu PIN khoá ghi chú bí mật (dạng hash) an toàn, mã hoá bằng Android Keystore
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Mở khoá ghi chú bí mật bằng vân tay / sinh trắc học (BiometricPrompt).
+    // Ghim fragment-ktx để FragmentActivity khớp với activity-compose / lifecycle 2.8.x
+    // (biometric 1.1.0 mặc định kéo theo fragment 1.2.5 quá cũ).
+    implementation("androidx.biometric:biometric:1.1.0")
+    // Hộp thoại vân tay trên Android 7-8 vẽ bằng AppCompat nên theme app phải là AppCompat.
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

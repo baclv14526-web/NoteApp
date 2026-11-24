@@ -24,6 +24,7 @@ object PinManager {
     private const val KEY_QUESTION = "security_question"
     private const val KEY_ANSWER_HASH = "answer_hash"
     private const val KEY_ANSWER_SALT = "answer_salt"
+    private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
 
     /** Danh sách câu hỏi bảo mật cho người dùng chọn khi đặt PIN lần đầu. */
     val securityQuestions = listOf(
@@ -97,6 +98,14 @@ object PinManager {
         val salt = p.getString(KEY_ANSWER_SALT, null) ?: return false
         val normalizedAnswer = answer.trim().lowercase()
         return hash(normalizedAnswer, salt) == storedHash
+    }
+
+    /** Người dùng đã bật mở khoá bằng vân tay hay chưa (mặc định tắt). */
+    fun isBiometricEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_BIOMETRIC_ENABLED, false)
+
+    fun setBiometricEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).apply()
     }
 
     /** Xoá PIN đã đặt — dùng khi người dùng muốn tắt hẳn tính năng khoá ghi chú. */

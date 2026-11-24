@@ -176,6 +176,7 @@ fun NoteEditScreen(
     // ── Màn hình xác thực PIN (khi mở 1 ghi chú đã bị khoá) ──────────────────
     if (showVerifyPinScreen) {
         VerifyPinScreen(
+            allowBiometric = true,
             onBack = onBack,
             onSuccess = {
                 showVerifyPinScreen = false

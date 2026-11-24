@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -23,12 +25,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.noteapp.util.PinManager
+import com.example.noteapp.util.BiometricHelper
 
 /**
  * Màn hình đặt PIN 6 số lần đầu tiên, kèm chọn 1 câu hỏi bảo mật + câu trả
@@ -179,11 +184,53 @@ fun SetupPinScreen(onBack: () -> Unit, onPinSet: () -> Unit) {
 fun VerifyPinScreen(
     onBack: () -> Unit,
     onSuccess: () -> Unit,
-    onForgotPin: () -> Unit
+    onForgotPin: () -> Unit,
+    // true: cho phép mở bằng vân tay (nếu người dùng đã bật trong Bảo mật và máy
+    // có vân tay đã đăng ký). Màn "Đổi mật khẩu" để false — đổi PIN luôn đòi PIN cũ.
+    allowBiometric: Boolean = false
 ) {
     val context = LocalContext.current
     var pin by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
+
+    val activity = remember { BiometricHelper.findActivity(context) }
+    val biometricReady = allowBiometric &&
+        activity != null &&
+        PinManager.isBiometricEnabled(context) &&
+        BiometricHelper.isAvailable(context)
+
+    fun promptBiometric() {
+        val act = activity ?: return
+        BiometricHelper.authenticate(
+            activity = act,
+            title = "Mở ghi chú bí mật",
+            subtitle = "Xác thực vân tay để xem ghi chú",
+            negativeButtonText = "Dùng mã PIN",
+            onSuccess = onSuccess,
+            onError = { message, canceledByUser ->
+                // Người dùng chủ động chọn PIN thì im lặng; lỗi thật (khoá tạm do
+                // thử sai nhiều lần...) thì hiện lý do ngay trên ô nhập PIN.
+                if (!canceledByUser) errorText = message
+            }
+        )
+    }
+
+    // Máy không còn vân tay/cảm biến mà cờ vẫn bật: tắt hẳn để sau này có vân tay lạ
+    // được thêm vào máy thì cờ cũ không tự sống lại. (Chỉ tắt với NOT_ENROLLED/NO_HARDWARE,
+    // lỗi tạm thời như cảm biến bận thì giữ nguyên cài đặt.)
+    LaunchedEffect(Unit) {
+        if (allowBiometric && PinManager.isBiometricEnabled(context)) {
+            val a = BiometricHelper.availability(context)
+            if (a == BiometricHelper.Availability.NOT_ENROLLED || a == BiometricHelper.Availability.NO_HARDWARE) {
+                PinManager.setBiometricEnabled(context, false)
+            }
+        }
+    }
+
+    // Tự hiện hộp thoại vân tay ngay khi mở màn hình; không được thì còn ô nhập PIN bên dưới.
+    LaunchedEffect(biometricReady) {
+        if (biometricReady) promptBiometric()
+    }
 
     Scaffold(
         topBar = {
@@ -245,6 +292,18 @@ fun VerifyPinScreen(
                 enabled = pin.length == 6
             ) {
                 Text("Mở khoá")
+            }
+
+            if (biometricReady) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = { promptBiometric() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Fingerprint, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Mở khoá bằng vân tay")
+                }
             }
 
             Spacer(Modifier.height(12.dp))
