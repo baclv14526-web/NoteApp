@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
@@ -47,7 +48,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,8 +72,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.noteapp.data.Note
 import com.example.noteapp.util.PinManager
@@ -463,8 +466,9 @@ fun NoteEditScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(if (!onImage) previewBg else Color.DarkGray)
+                    .border(1.dp, inputTextColor.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
             ) {
                 // Ảnh nền (nếu có) trải full, ContentScale.Crop giữ tỉ lệ
                 if (onImage) {
@@ -497,13 +501,18 @@ fun NoteEditScreen(
                         placeholder = {
                             Text(
                                 "Tiêu đề",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = placeholderColor
                             )
                         },
-                        textStyle = MaterialTheme.typography.titleLarge.copy(
+                        textStyle = MaterialTheme.typography.headlineSmall.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = inputTextColor
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                            imeAction = ImeAction.Next
                         ),
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = Color.Transparent,
@@ -531,7 +540,7 @@ fun NoteEditScreen(
                         onValueChange = { content = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 160.dp),
+                            .heightIn(min = 240.dp),
                         placeholder = {
                             Text(
                                 "Nội dung ghi chú...",
@@ -540,7 +549,11 @@ fun NoteEditScreen(
                             )
                         },
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = inputTextColor
+                            color = inputTextColor,
+                            lineHeight = 26.sp
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences
                         ),
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = Color.Transparent,
@@ -551,6 +564,20 @@ fun NoteEditScreen(
                             focusedTextColor = inputTextColor,
                             unfocusedTextColor = inputTextColor
                         )
+                    )
+
+                    // Bộ đếm từ / ký tự, nhỏ và mờ để không làm rối vùng viết
+                    val stats = remember(content) {
+                        val words = content.trim().split(Regex("\\s+")).count { it.isNotEmpty() }
+                        "$words từ · ${content.length} ký tự"
+                    }
+                    Text(
+                        stats,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = inputTextColor.copy(alpha = 0.55f),
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 4.dp, end = 8.dp, bottom = 4.dp)
                     )
                 }
             }
@@ -592,11 +619,15 @@ fun NoteEditScreen(
             }
 
             Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
+            ModernTextField(
                 value = tagsText,
                 onValueChange = { tagsText = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Tag, cách nhau bởi dấu phẩy (vd: urgent, idea)") }
+                label = "Tag",
+                placeholder = "urgent, idea, học tập",
+                leading = { Text("#", style = MaterialTheme.typography.titleMedium) },
+                showClear = true,
+                supportingText = "Ngăn cách các tag bằng dấu phẩy",
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
             )
 
             Spacer(Modifier.height(16.dp))
