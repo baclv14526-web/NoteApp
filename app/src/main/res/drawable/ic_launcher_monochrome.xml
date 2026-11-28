@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lớp đơn sắc cho icon theo chủ đề (Android 13+). Cùng vùng an toàn như lớp màu. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M40,31 H62 L72,41 V73 Q72,77 68,77 H40 Q36,77 36,73 V35 Q36,31 40,31 Z M43.5,47 H64.5 A1.5,1.5 0 0 1 64.5,50 H43.5 A1.5,1.5 0 0 1 43.5,47 Z M43.5,55 H64.5 A1.5,1.5 0 0 1 64.5,58 H43.5 A1.5,1.5 0 0 1 43.5,55 Z M43.5,63 H54.5 A1.5,1.5 0 0 1 54.5,66 H43.5 A1.5,1.5 0 0 1 43.5,63 Z" />
+</vector>
